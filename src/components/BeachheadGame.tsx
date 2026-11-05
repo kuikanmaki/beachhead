@@ -80,7 +80,7 @@ export function BeachheadGame() {
       cameraRef.current = panCamera(cameraRef.current, (dx / rect.width) * W / cameraRef.current.zoom, (dy / rect.height) * H / cameraRef.current.zoom);
     };
     const onPointerUp = () => {
-      if (dragRef.current?.moved && cameraRef.current.zoom > 1) setDragging(false);
+      if (dragRef.current?.moved) setDragging(false);
       dragRef.current = null;
     };
     window.addEventListener("pointermove", onPointerMove);
