@@ -1,23 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { BeachheadGame } from "@/components/BeachheadGame";
 
-// The home route ships no og:image, so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "Beachhead — Bug War Tower Defense" },
+      { name: "description", content: "Hold a desert beachhead against arachnid swarms with expendable infantry and machine-gun towers." },
+      { property: "og:title", content: "Beachhead — Bug War Tower Defense" },
+      { property: "og:description", content: "Land your platoon, hold the chokepoints, build towers, survive the horde." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: BeachheadGame,
 });
-
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
