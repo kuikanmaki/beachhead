@@ -66,11 +66,32 @@ export function BeachheadGame() {
       setZoom(cameraRef.current.zoom);
     };
     cv?.addEventListener("wheel", onWheel, { passive: false });
+    const onPointerMove = (e: PointerEvent) => {
+      const d = dragRef.current, cvs = canvasRef.current;
+      if (!d || !cvs) return;
+      const rect = cvs.getBoundingClientRect();
+      const dx = e.clientX - d.lx, dy = e.clientY - d.ly;
+      d.lx = e.clientX; d.ly = e.clientY;
+      if (!d.moved) {
+        if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5) return;
+        d.moved = true;
+        if (cameraRef.current.zoom > 1) setDragging(true);
+      }
+      cameraRef.current = panCamera(cameraRef.current, (dx / rect.width) * W / cameraRef.current.zoom, (dy / rect.height) * H / cameraRef.current.zoom);
+    };
+    const onPointerUp = () => {
+      if (dragRef.current?.moved && cameraRef.current.zoom > 1) setDragging(false);
+      dragRef.current = null;
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", unlockAudio);
     return () => {
       cancelAnimationFrame(raf);
       cv?.removeEventListener("wheel", onWheel);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", unlockAudio);
     };
