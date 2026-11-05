@@ -121,8 +121,9 @@ export function BeachheadGame() {
   );
 }
 
-function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart }: {
+function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom, resetView }: {
   g: Game; mode: Mode; setMode: (m: Mode) => void; mute: boolean; toggleMute: () => void; fmt: (s: number) => string; restart: () => void;
+  zoom: number; applyZoom: (next: number) => void; resetView: () => void;
 }) {
   const hold = g.phase === "playing" ? g.holdTime() : 0;
   const soldiers = g.platoons.reduce((a, p) => a + p.soldiers, 0);
@@ -177,9 +178,17 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart }: {
           <p>Click a platoon to select, then click/right-click to move it.</p>
           <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
           <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
+          <p className="mt-1">Scroll to zoom around your cursor. Press 0 to reset.</p>
           <p className="mt-1">You only hear what your troops hear.</p>
         </div>
       </aside>
+
+      <div className="absolute bottom-4 left-4 flex items-center gap-1 rounded-sm border border-border bg-card/80 p-1 font-mono text-xs backdrop-blur-sm" aria-label="Map zoom controls">
+        <button className="hud-btn justify-center px-3 py-1" onClick={() => applyZoom(zoom / 1.25)} disabled={zoom <= 1} aria-label="Zoom out">−</button>
+        <output className="w-12 text-center" aria-live="polite">{Math.round(zoom * 100)}%</output>
+        <button className="hud-btn justify-center px-3 py-1" onClick={() => applyZoom(zoom * 1.25)} disabled={zoom >= 3} aria-label="Zoom in">+</button>
+        <button className="hud-btn justify-center px-2 py-1" onClick={resetView} disabled={zoom === 1} aria-label="Reset zoom">Reset</button>
+      </div>
 
       {g.phase === "landing" && (
         <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded-sm border border-primary/40 bg-background/85 px-4 py-2 font-mono text-sm text-primary">
