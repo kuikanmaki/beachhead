@@ -2,6 +2,7 @@
 // High-resolution renderer for Beachhead: lit procedural terrain, animated units, light effects.
 import type { Game } from "./engine";
 import { T, W, H, ROCK, HIGH } from "./engine";
+import type { Camera } from "./camera";
 
 export const RS = 2; // render scale: canvas pixels per engine pixel
 const PX = T * RS; // canvas pixels per tile
