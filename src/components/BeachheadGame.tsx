@@ -102,6 +102,7 @@ export function BeachheadGame() {
     return screenToWorld(cameraRef.current, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
   };
   const onClick = (e: React.MouseEvent) => {
+    if (e.button !== 0 || dragRef.current?.moved) { dragRef.current = null; return; }
     const g = gameRef.current, p = toWorld(e);
     if (!g) return;
     if (g.phase === "landing") return void g.land(Math.floor(p.x), Math.floor(p.y));
@@ -129,7 +130,11 @@ export function BeachheadGame() {
         ref={canvasRef}
         width={W * T * RS}
         height={H * T * RS}
-        className="absolute inset-0 block h-full w-full cursor-crosshair"
+        className={`absolute inset-0 block h-full w-full ${dragging ? "cursor-grabbing" : zoom > 1 ? "cursor-grab" : "cursor-crosshair"}`}
+        onPointerDown={(e) => {
+          if (e.button !== 0 || cameraRef.current.zoom <= 1) return;
+          dragRef.current = { sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, moved: false };
+        }}
         onClick={onClick}
         onContextMenu={onContext}
         onMouseMove={(e) => (hoverRef.current = toWorld(e))}
