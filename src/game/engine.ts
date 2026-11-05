@@ -73,7 +73,7 @@ export class Game {
         const bot = g(ix, iy + 1) + (g(ix + 1, iy + 1) - g(ix, iy + 1)) * s(sx);
         n += (top + (bot - top) * s(sy)) * o.a;
       }
-      m[y * W + x] = n > 0.64 ? ROCK : n > 0.56 ? HIGH : GROUND;
+      m[y * W + x] = n > 0.6 ? ROCK : n > 0.53 ? HIGH : GROUND;
     }
     return m;
   }

@@ -71,7 +71,7 @@ export function BeachheadGame() {
         <p className="font-mono text-sm text-muted-foreground">{g.message}</p>
       </header>
 
-      <div className="grid w-full max-w-[1200px] gap-4 lg:grid-cols-[1fr_240px]">
+      <div className="grid w-full max-w-[1200px] gap-4 items-start lg:grid-cols-[1fr_240px]">
         <div className="relative overflow-hidden rounded-sm border-2 border-border shadow-hud">
           <canvas
             ref={canvasRef}
