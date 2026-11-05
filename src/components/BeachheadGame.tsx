@@ -55,16 +55,32 @@ export function BeachheadGame() {
       if (e.key === "2") gameRef.current?.trainEngineer();
       if (e.key === "3") setMode("tower");
       if (e.key === "Escape") setMode("select");
+      if (e.key === "0") { cameraRef.current = resetCamera(); setZoom(1); }
       if (e.key === "m" || e.key === "M") toggleMute();
     };
+    const cv = canvasRef.current;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (!cv) return;
+      const rect = cv.getBoundingClientRect();
+      const u = (e.clientX - rect.left) / rect.width, v = (e.clientY - rect.top) / rect.height;
+      cameraRef.current = wheelZoom(cameraRef.current, e.deltaY, e.deltaMode, u, v);
+      setZoom(cameraRef.current.zoom);
+    };
+    cv?.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", unlockAudio);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("keydown", onKey); window.removeEventListener("pointerdown", unlockAudio); };
+    return () => {
+      cancelAnimationFrame(raf);
+      cv?.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", unlockAudio);
+    };
   }, []);
 
   const toWorld = (e: React.MouseEvent) => {
     const r = canvasRef.current!.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    return screenToWorld(cameraRef.current, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
   };
   const onClick = (e: React.MouseEvent) => {
     const g = gameRef.current, p = toWorld(e);
@@ -83,7 +99,7 @@ export function BeachheadGame() {
     const sel = g.platoons.find((x) => x.id === g.selected);
     if (sel) { sel.tx = p.x; sel.ty = p.y; }
   };
-  const restart = () => { gameRef.current = freshGame(); setMode("select"); };
+  const restart = () => { gameRef.current = freshGame(); setMode("select"); resetView(); };
 
   const g = gameRef.current;
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -100,7 +116,7 @@ export function BeachheadGame() {
         onMouseMove={(e) => (hoverRef.current = toWorld(e))}
         onMouseLeave={() => (hoverRef.current = null)}
       />
-      {g && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} />}
+      {g && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} zoom={zoom} applyZoom={applyZoom} resetView={resetView} />}
     </div>
   );
 }
