@@ -202,7 +202,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
           <p>Click a platoon to select, then click/right-click to move it.</p>
           <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
           <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
-          <p className="mt-1">Scroll to zoom around your cursor. Press 0 to reset.</p>
+          <p className="mt-1">Scroll to zoom around your cursor. Click and drag to pan while zoomed. Press 0 to reset.</p>
           <p className="mt-1">You only hear what your troops hear.</p>
         </div>
       </aside>
