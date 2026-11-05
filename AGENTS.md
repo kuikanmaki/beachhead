@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep map-camera coordinate conversion and zoom constraints in `src/game/camera.ts`; rendering and pointer commands must share them so zoomed input stays aligned.

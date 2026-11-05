@@ -2,6 +2,7 @@
 // High-resolution renderer for Beachhead: lit procedural terrain, animated units, light effects.
 import type { Game } from "./engine";
 import { T, W, H, ROCK, HIGH } from "./engine";
+import type { Camera } from "./camera";
 
 export const RS = 2; // render scale: canvas pixels per engine pixel
 const PX = T * RS; // canvas pixels per tile
@@ -314,13 +315,13 @@ function tower(c: CanvasRenderingContext2D, g: Game, t: any, now: number, dt: nu
 }
 
 // ---------- main ----------
-export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string) {
+export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string, camera: Camera) {
   const now = performance.now() / 1000, dt = Math.min(0.1, now - (lastNow || now)); lastNow = now;
   if (!g.bg) g.bg = buildTerrain(g);
   sizeUp();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(g.bg, 0, 0);
-  ctx.setTransform(PX, 0, 0, PX, 0, 0);
+  const scale = PX * camera.zoom, ox = -camera.x * scale, oy = -camera.y * scale;
+  ctx.setTransform(scale, 0, 0, scale, ox, oy);
+  ctx.drawImage(g.bg, 0, 0, W, H);
   const c = ctx;
 
   // splats (decals)
@@ -344,7 +345,8 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
       c.lineWidth = 0.05; c.beginPath(); c.arc(hx, hy, 0.6 + pulse * 0.6, 0, TAU); c.stroke();
       c.beginPath(); c.moveTo(hx - 1, hy); c.lineTo(hx + 1, hy); c.moveTo(hx, hy - 1); c.lineTo(hx, hy + 1); c.stroke();
     }
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(getVignette(), 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(getVignette(), 0, 0);
     return;
   }
 

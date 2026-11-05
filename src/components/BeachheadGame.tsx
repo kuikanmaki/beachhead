@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Game, T, W, H, COST, WIN_AFTER, HOLD_NEEDED, setMapSize } from "@/game/engine";
 import { renderGame, RS } from "@/game/render";
 import { audioTick, unlockAudio, setMuted } from "@/game/sound";
+import { resetCamera, screenToWorld, wheelZoom, zoomCamera, type Camera } from "@/game/camera";
 
 type Mode = "select" | "platoon" | "tower";
 
@@ -15,11 +16,18 @@ export function BeachheadGame() {
   const gameRef = useRef<Game | null>(null);
   const modeRef = useRef<Mode>("select");
   const hoverRef = useRef<{ x: number; y: number } | null>(null);
+  const cameraRef = useRef<Camera>(resetCamera());
   const [mode, setModeState] = useState<Mode>("select");
+  const [zoom, setZoom] = useState(1);
   const [mute, setMute] = useState(false);
   const [, setTick] = useState(0);
   const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
   const toggleMute = () => setMute((m) => { setMuted(!m); return !m; });
+  const applyZoom = (next: number, u = 0.5, v = 0.5) => {
+    cameraRef.current = zoomCamera(cameraRef.current, next, u, v);
+    setZoom(cameraRef.current.zoom);
+  };
+  const resetView = () => { cameraRef.current = resetCamera(); setZoom(1); };
 
   useEffect(() => {
     gameRef.current = freshGame();
@@ -32,7 +40,7 @@ export function BeachheadGame() {
         if (cv.width !== W * T * RS || cv.height !== H * T * RS) { cv.width = W * T * RS; cv.height = H * T * RS; }
         g.update(dt);
         audioTick(g, dt);
-        renderGame(g, cv.getContext("2d")!, hoverRef.current, modeRef.current);
+        renderGame(g, cv.getContext("2d")!, hoverRef.current, modeRef.current, cameraRef.current);
       }
       hud += dt;
       if (hud > 0.15) { hud = 0; setTick((t) => t + 1); }
@@ -45,16 +53,32 @@ export function BeachheadGame() {
       if (e.key === "2") gameRef.current?.trainEngineer();
       if (e.key === "3") setMode("tower");
       if (e.key === "Escape") setMode("select");
+      if (e.key === "0") { cameraRef.current = resetCamera(); setZoom(1); }
       if (e.key === "m" || e.key === "M") toggleMute();
     };
+    const cv = canvasRef.current;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (!cv) return;
+      const rect = cv.getBoundingClientRect();
+      const u = (e.clientX - rect.left) / rect.width, v = (e.clientY - rect.top) / rect.height;
+      cameraRef.current = wheelZoom(cameraRef.current, e.deltaY, e.deltaMode, u, v);
+      setZoom(cameraRef.current.zoom);
+    };
+    cv?.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", unlockAudio);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("keydown", onKey); window.removeEventListener("pointerdown", unlockAudio); };
+    return () => {
+      cancelAnimationFrame(raf);
+      cv?.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", unlockAudio);
+    };
   }, []);
 
   const toWorld = (e: React.MouseEvent) => {
     const r = canvasRef.current!.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    return screenToWorld(cameraRef.current, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
   };
   const onClick = (e: React.MouseEvent) => {
     const g = gameRef.current, p = toWorld(e);
@@ -73,7 +97,7 @@ export function BeachheadGame() {
     const sel = g.platoons.find((x) => x.id === g.selected);
     if (sel) { sel.tx = p.x; sel.ty = p.y; }
   };
-  const restart = () => { gameRef.current = freshGame(); setMode("select"); };
+  const restart = () => { gameRef.current = freshGame(); setMode("select"); resetView(); };
 
   const g = gameRef.current;
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -90,13 +114,14 @@ export function BeachheadGame() {
         onMouseMove={(e) => (hoverRef.current = toWorld(e))}
         onMouseLeave={() => (hoverRef.current = null)}
       />
-      {g && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} />}
+      {g && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} zoom={zoom} applyZoom={applyZoom} resetView={resetView} />}
     </div>
   );
 }
 
-function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart }: {
+function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom, resetView }: {
   g: Game; mode: Mode; setMode: (m: Mode) => void; mute: boolean; toggleMute: () => void; fmt: (s: number) => string; restart: () => void;
+  zoom: number; applyZoom: (next: number) => void; resetView: () => void;
 }) {
   const hold = g.phase === "playing" ? g.holdTime() : 0;
   const soldiers = g.platoons.reduce((a, p) => a + p.soldiers, 0);
@@ -151,9 +176,17 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart }: {
           <p>Click a platoon to select, then click/right-click to move it.</p>
           <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
           <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
+          <p className="mt-1">Scroll to zoom around your cursor. Press 0 to reset.</p>
           <p className="mt-1">You only hear what your troops hear.</p>
         </div>
       </aside>
+
+      <div className="absolute bottom-4 left-4 flex items-center gap-1 rounded-sm border border-border bg-card/80 p-1 font-mono text-xs backdrop-blur-sm" aria-label="Map zoom controls">
+        <button className="hud-btn justify-center px-3 py-1" onClick={() => applyZoom(zoom / 1.25)} disabled={zoom <= 1} aria-label="Zoom out">−</button>
+        <output className="w-12 text-center" aria-live="polite">{Math.round(zoom * 100)}%</output>
+        <button className="hud-btn justify-center px-3 py-1" onClick={() => applyZoom(zoom * 1.25)} disabled={zoom >= 3} aria-label="Zoom in">+</button>
+        <button className="hud-btn justify-center px-2 py-1" onClick={resetView} disabled={zoom === 1} aria-label="Reset zoom">Reset</button>
+      </div>
 
       {g.phase === "landing" && (
         <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded-sm border border-primary/40 bg-background/85 px-4 py-2 font-mono text-sm text-primary">
