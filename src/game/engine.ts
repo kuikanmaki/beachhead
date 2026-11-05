@@ -1,8 +1,10 @@
 // @ts-nocheck -- hot-loop typed-array/grid indexing; strict indexed-access checks are disabled for this file only.
 // Klendathu Beachhead — pure game simulation + canvas renderer (no React).
 export const T = 20;
-export const W = 48;
-export const H = 32;
+export let W = 48;
+export let H = 32;
+/** Fit the map grid to the screen aspect ratio. Call before creating a Game. */
+export function setMapSize(aspect: number) { H = 32; W = Math.max(32, Math.min(80, Math.round(32 * aspect))); }
 export const GROUND = 0, HIGH = 1, ROCK = 2;
 
 export const COST = { platoon: 60, engineer: 80, tower: 120 };

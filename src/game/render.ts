@@ -5,7 +5,8 @@ import { T, W, H, ROCK, HIGH } from "./engine";
 
 export const RS = 2; // render scale: canvas pixels per engine pixel
 const PX = T * RS; // canvas pixels per tile
-const PW = W * PX, PH = H * PX;
+let PW = W * PX, PH = H * PX;
+const sizeUp = () => { PW = W * PX; PH = H * PX; };
 const TAU = Math.PI * 2;
 
 // ---------- noise ----------
@@ -30,6 +31,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 // ---------- terrain ----------
 function buildTerrain(g: Game) {
+  sizeUp();
   const seed = (g.map.length + g.map.reduce((a, v, i) => (a + v * (i % 97)) | 0, 0)) % 1000;
   const tv = (x: number, y: number) => {
     x = Math.max(0, Math.min(W - 1, x)); y = Math.max(0, Math.min(H - 1, y));
@@ -114,7 +116,7 @@ function buildTerrain(g: Game) {
 
 let vignette: HTMLCanvasElement | null = null;
 function getVignette() {
-  if (vignette) return vignette;
+  if (vignette && vignette.width === PW && vignette.height === PH) return vignette;
   const c = document.createElement("canvas"); c.width = PW; c.height = PH;
   const x = c.getContext("2d")!;
   const g = x.createRadialGradient(PW / 2, PH / 2, PH * 0.35, PW / 2, PH / 2, PW * 0.62);
@@ -315,6 +317,7 @@ function tower(c: CanvasRenderingContext2D, g: Game, t: any, now: number, dt: nu
 export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string) {
   const now = performance.now() / 1000, dt = Math.min(0.1, now - (lastNow || now)); lastNow = now;
   if (!g.bg) g.bg = buildTerrain(g);
+  sizeUp();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(g.bg, 0, 0);
   ctx.setTransform(PX, 0, 0, PX, 0, 0);
