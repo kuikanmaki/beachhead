@@ -16,7 +16,10 @@ export function BeachheadGame() {
   const gameRef = useRef<Game | null>(null);
   const modeRef = useRef<Mode>("select");
   const hoverRef = useRef<{ x: number; y: number } | null>(null);
+  const cameraRef = useRef<Camera>(resetCamera());
+  const zoomActionRef = useRef<(next: number, u?: number, v?: number) => void>(() => {});
   const [mode, setModeState] = useState<Mode>("select");
+  const [zoom, setZoom] = useState(1);
   const [mute, setMute] = useState(false);
   const [, setTick] = useState(0);
   const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };

@@ -315,13 +315,13 @@ function tower(c: CanvasRenderingContext2D, g: Game, t: any, now: number, dt: nu
 }
 
 // ---------- main ----------
-export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string) {
+export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string, camera: Camera) {
   const now = performance.now() / 1000, dt = Math.min(0.1, now - (lastNow || now)); lastNow = now;
   if (!g.bg) g.bg = buildTerrain(g);
   sizeUp();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(g.bg, 0, 0);
-  ctx.setTransform(PX, 0, 0, PX, 0, 0);
+  const scale = PX * camera.zoom, ox = -camera.x * scale, oy = -camera.y * scale;
+  ctx.setTransform(scale, 0, 0, scale, ox, oy);
+  ctx.drawImage(g.bg, 0, 0, W, H);
   const c = ctx;
 
   // splats (decals)
