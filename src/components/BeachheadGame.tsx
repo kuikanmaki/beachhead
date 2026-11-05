@@ -42,7 +42,7 @@ export function BeachheadGame() {
         if (cv.width !== W * T * RS || cv.height !== H * T * RS) { cv.width = W * T * RS; cv.height = H * T * RS; }
         g.update(dt);
         audioTick(g, dt);
-        renderGame(g, cv.getContext("2d")!, hoverRef.current, modeRef.current);
+        renderGame(g, cv.getContext("2d")!, hoverRef.current, modeRef.current, cameraRef.current);
       }
       hud += dt;
       if (hud > 0.15) { hud = 0; setTick((t) => t + 1); }
