@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { setMapSize } from "@/game/engine";
-import { MAX_ZOOM, MIN_ZOOM, resetCamera, screenToWorld, wheelZoom, zoomCamera } from "@/game/camera";
+import { MAX_ZOOM, MIN_ZOOM, panCamera, resetCamera, screenToWorld, wheelZoom, zoomCamera } from "@/game/camera";
 
 describe("map camera", () => {
   beforeEach(() => setMapSize(2));

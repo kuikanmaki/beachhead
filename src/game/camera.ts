@@ -30,6 +30,11 @@ export function zoomCamera(camera: Camera, requestedZoom: number, u = 0.5, v = 0
   return clampCamera({ zoom, x: anchor.x - (u * W) / zoom, y: anchor.y - (v * H) / zoom });
 }
 
+/** Pan (grab-and-drag): moving the pointer by (dx, dy) world units slides the view the opposite way. */
+export function panCamera(camera: Camera, dx: number, dy: number): Camera {
+  return clampCamera({ ...camera, x: camera.x - dx, y: camera.y - dy });
+}
+
 /** Normalize mouse-wheel and trackpad deltas, including browser line/page modes. */
 export function wheelZoom(camera: Camera, deltaY: number, deltaMode: number, u: number, v: number): Camera {
   const dy = deltaY * (deltaMode === 1 ? 16 : deltaMode === 2 ? 100 : 1);
