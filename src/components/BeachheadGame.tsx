@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Game, T, W, H, COST, WIN_AFTER, HOLD_NEEDED, setMapSize } from "@/game/engine";
 import { renderGame, RS } from "@/game/render";
 import { audioTick, unlockAudio, setMuted } from "@/game/sound";
-import { resetCamera, screenToWorld, wheelZoom, zoomCamera, type Camera } from "@/game/camera";
+import { panCamera, resetCamera, screenToWorld, wheelZoom, zoomCamera, type Camera } from "@/game/camera";
 
 type Mode = "select" | "platoon" | "tower";
 
@@ -17,8 +17,10 @@ export function BeachheadGame() {
   const modeRef = useRef<Mode>("select");
   const hoverRef = useRef<{ x: number; y: number } | null>(null);
   const cameraRef = useRef<Camera>(resetCamera());
-  const [mode, setModeState] = useState<Mode>("select");
+  const dragRef = useRef<{ sx: number; sy: number; lx: number; ly: number; moved: boolean } | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [dragging, setDragging] = useState(false);
+  const [mode, setModeState] = useState<Mode>("select");
   const [mute, setMute] = useState(false);
   const [, setTick] = useState(0);
   const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
@@ -66,11 +68,32 @@ export function BeachheadGame() {
       setZoom(cameraRef.current.zoom);
     };
     cv?.addEventListener("wheel", onWheel, { passive: false });
+    const onPointerMove = (e: PointerEvent) => {
+      const d = dragRef.current, cvs = canvasRef.current;
+      if (!d || !cvs) return;
+      const rect = cvs.getBoundingClientRect();
+      const dx = e.clientX - d.lx, dy = e.clientY - d.ly;
+      d.lx = e.clientX; d.ly = e.clientY;
+      if (!d.moved) {
+        if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5) return;
+        d.moved = true;
+        if (cameraRef.current.zoom > 1) setDragging(true);
+      }
+      cameraRef.current = panCamera(cameraRef.current, (dx / rect.width) * W / cameraRef.current.zoom, (dy / rect.height) * H / cameraRef.current.zoom);
+    };
+    const onPointerUp = () => {
+      if (dragRef.current?.moved) setDragging(false);
+      dragRef.current = null;
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", unlockAudio);
     return () => {
       cancelAnimationFrame(raf);
       cv?.removeEventListener("wheel", onWheel);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", unlockAudio);
     };
@@ -81,6 +104,7 @@ export function BeachheadGame() {
     return screenToWorld(cameraRef.current, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
   };
   const onClick = (e: React.MouseEvent) => {
+    if (e.button !== 0 || dragRef.current?.moved) { dragRef.current = null; return; }
     const g = gameRef.current, p = toWorld(e);
     if (!g) return;
     if (g.phase === "landing") return void g.land(Math.floor(p.x), Math.floor(p.y));
@@ -108,7 +132,11 @@ export function BeachheadGame() {
         ref={canvasRef}
         width={W * T * RS}
         height={H * T * RS}
-        className="absolute inset-0 block h-full w-full cursor-crosshair"
+        className={`absolute inset-0 block h-full w-full ${dragging ? "cursor-grabbing" : zoom > 1 ? "cursor-grab" : "cursor-crosshair"}`}
+        onPointerDown={(e) => {
+          if (e.button !== 0 || cameraRef.current.zoom <= 1) return;
+          dragRef.current = { sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, moved: false };
+        }}
         onClick={onClick}
         onContextMenu={onContext}
         onMouseMove={(e) => (hoverRef.current = toWorld(e))}
@@ -176,7 +204,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
           <p>Click a platoon to select, then click/right-click to move it.</p>
           <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
           <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
-          <p className="mt-1">Scroll to zoom around your cursor. Press 0 to reset.</p>
+          <p className="mt-1">Scroll to zoom around your cursor. Click and drag to pan while zoomed. Press 0 to reset.</p>
           <p className="mt-1">You only hear what your troops hear.</p>
         </div>
       </aside>
