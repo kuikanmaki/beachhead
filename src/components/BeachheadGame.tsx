@@ -24,6 +24,12 @@ export function BeachheadGame() {
   const [, setTick] = useState(0);
   const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
   const toggleMute = () => setMute((m) => { setMuted(!m); return !m; });
+  const applyZoom = (next: number, u = 0.5, v = 0.5) => {
+    cameraRef.current = zoomCamera(cameraRef.current, next, u, v);
+    setZoom(cameraRef.current.zoom);
+  };
+  zoomActionRef.current = applyZoom;
+  const resetView = () => { cameraRef.current = resetCamera(); setZoom(1); };
 
   useEffect(() => {
     gameRef.current = freshGame();

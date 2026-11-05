@@ -345,7 +345,8 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
       c.lineWidth = 0.05; c.beginPath(); c.arc(hx, hy, 0.6 + pulse * 0.6, 0, TAU); c.stroke();
       c.beginPath(); c.moveTo(hx - 1, hy); c.lineTo(hx + 1, hy); c.moveTo(hx, hy - 1); c.lineTo(hx, hy + 1); c.stroke();
     }
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(getVignette(), 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(getVignette(), 0, 0);
     return;
   }
 
