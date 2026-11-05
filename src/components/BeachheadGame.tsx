@@ -17,7 +17,6 @@ export function BeachheadGame() {
   const modeRef = useRef<Mode>("select");
   const hoverRef = useRef<{ x: number; y: number } | null>(null);
   const cameraRef = useRef<Camera>(resetCamera());
-  const zoomActionRef = useRef<(next: number, u?: number, v?: number) => void>(() => {});
   const [mode, setModeState] = useState<Mode>("select");
   const [zoom, setZoom] = useState(1);
   const [mute, setMute] = useState(false);
@@ -28,7 +27,6 @@ export function BeachheadGame() {
     cameraRef.current = zoomCamera(cameraRef.current, next, u, v);
     setZoom(cameraRef.current.zoom);
   };
-  zoomActionRef.current = applyZoom;
   const resetView = () => { cameraRef.current = resetCamera(); setZoom(1); };
 
   useEffect(() => {
