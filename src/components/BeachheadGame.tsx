@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Game, T, W, H, COST, WIN_AFTER, HOLD_NEEDED, setMapSize } from "@/game/engine";
 import { renderGame, RS } from "@/game/render";
 import { audioTick, unlockAudio, setMuted } from "@/game/sound";
-import { resetCamera, screenToWorld, wheelZoom, zoomCamera, type Camera } from "@/game/camera";
+import { panCamera, resetCamera, screenToWorld, wheelZoom, zoomCamera, type Camera } from "@/game/camera";
 
 type Mode = "select" | "platoon" | "tower";
 

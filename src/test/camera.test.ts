@@ -31,4 +31,15 @@ describe("map camera", () => {
     expect(small.zoom).toBeCloseTo(Math.exp(0.015));
     expect(wheelZoom(camera, -10, 1, 0.5, 0.5).zoom).toBeCloseTo(wheelZoom(camera, -160, 0, 0.5, 0.5).zoom);
   });
+
+  it("pans with the drag and keeps the view inside the map", () => {
+    const zoomed = zoomCamera(resetCamera(), 2, 0.5, 0.5);
+    const start = screenToWorld(zoomed, 0.5, 0.5);
+    const dragged = panCamera(zoomed, -8, 4);
+    const after = screenToWorld(dragged, 0.5, 0.5);
+    expect(after.x).toBeCloseTo(start.x + 8);
+    expect(after.y).toBeCloseTo(start.y - 4);
+    expect(panCamera(zoomed, -1000, 0).x).toBe(64 - 64 / zoomed.zoom);
+    expect(panCamera(zoomed, 0, 1000).y).toBe(0);
+  });
 });
