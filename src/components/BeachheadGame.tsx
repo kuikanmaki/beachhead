@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Game, T, W, H, COST, WIN_AFTER, HOLD_NEEDED } from "@/game/engine";
+import { renderGame, RS } from "@/game/render";
 
 type Mode = "select" | "platoon" | "tower";
 
@@ -19,7 +20,7 @@ export function BeachheadGame() {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       const g = gameRef.current;
       g.update(dt);
-      g.render(ctx, hoverRef.current, modeRef.current);
+      renderGame(g, ctx, hoverRef.current, modeRef.current);
       hud += dt;
       if (hud > 0.15) { hud = 0; setTick((t) => t + 1); }
       raf = requestAnimationFrame(loop);
@@ -75,8 +76,8 @@ export function BeachheadGame() {
         <div className="relative overflow-hidden rounded-sm border-2 border-border shadow-hud">
           <canvas
             ref={canvasRef}
-            width={W * T}
-            height={H * T}
+            width={W * T * RS}
+            height={H * T * RS}
             className="block h-auto w-full cursor-crosshair"
             onClick={onClick}
             onContextMenu={onContext}
