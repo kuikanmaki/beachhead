@@ -39,6 +39,7 @@ describe("fog of war", () => {
 
     expect(landed).toBe(true);
     expect(game.fog.stateAt(game.core.x, game.core.y, false)).toBe(2);
-    expect(game.fog.stateAt(0, 0, false)).toBe(0);
+    const farX = game.core.x < 32 ? 63 : 0, farY = game.core.y < 16 ? 31 : 0;
+    expect(game.fog.stateAt(farX, farY, false)).toBe(0);
   });
 });
