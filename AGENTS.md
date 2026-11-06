@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Keep map-camera coordinate conversion and zoom constraints in `src/game/camera.ts`; rendering and pointer commands must share them so zoomed input stays aligned.
+- Keep fog-of-war exploration state in `src/game/fog.ts`; the engine updates it from troop positions so rendering and commands share the same visibility rules.
