@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FogOfWar } from "@/game/fog";
-import { Game, setMapSize } from "@/game/engine";
+import { Game, GROUND, HIGH, setMapSize } from "@/game/engine";
 
 describe("fog of war", () => {
   it("starts completely unexplored and reveals around ground troops", () => {
@@ -29,6 +29,32 @@ describe("fog of war", () => {
     expect(fog.stateAt(4, 4, false)).toBe(2);
     expect(fog.stateAt(10, 10, false)).toBe(0);
     expect(fog.stateAt(10, 10, true)).toBe(2);
+  });
+
+  it("shows a central drop-scan landing area before landing with satellite comms off", () => {
+    setMapSize(2);
+    const game = new Game(6);
+
+    expect(game.phase).toBe("landing");
+    expect(game.fog.stateAt(32, 16, false)).toBe(2);
+    expect(game.fog.stateAt(0, 0, false)).toBe(0);
+    expect(game.fog.stateAt(63, 31, false)).toBe(0);
+  });
+
+  it("reveals the exact firing radius around completed ground and high-ground MG towers", () => {
+    setMapSize(2);
+    const game = new Game(9);
+    game.map.fill(GROUND);
+    game.towers.push({ id: 1, tx: 8, ty: 16, built: 1, hp: 300, cd: 0 });
+
+    game.updateFog();
+    expect(game.fog.stateAt(13.9, 16.5, false)).toBe(2); // 5.4 tiles: inside 5.5 range
+    expect(game.fog.stateAt(14.1, 16.5, false)).toBe(0); // 5.6 tiles: outside 5.5 range
+
+    game.map[16 * 64 + 8] = HIGH;
+    game.updateFog();
+    expect(game.fog.stateAt(15.4, 16.5, false)).toBe(2); // 6.9 tiles: inside 7 range
+    expect(game.fog.stateAt(15.6, 16.5, false)).toBe(0); // 7.1 tiles: outside 7 range
   });
 
   it("reveals the landing zone as soon as the first units land", () => {

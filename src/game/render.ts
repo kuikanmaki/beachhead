@@ -285,7 +285,7 @@ function tower(c: CanvasRenderingContext2D, g: Game, t: any, now: number, dt: nu
     c.strokeStyle = "#ffb347"; c.lineWidth = 0.07; c.beginPath(); c.arc(x, y, 0.55, -Math.PI / 2, -Math.PI / 2 + TAU * t.built); c.stroke();
     return;
   }
-  const tg = nearest(g, x, y, g.at(t.tx, t.ty) === HIGH ? 7 : 5.5);
+  const tg = nearest(g, x, y, g.towerRangeAt(t.tx, t.ty));
   if (tg) s.ang = turn(s.ang, Math.atan2(tg.y - y, tg.x - x), dt * 10);
   shadow(c, x, y, 0.5, 0.45, 0.45);
   // sandbag ring
@@ -422,7 +422,10 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     s.px = p.x; s.py = p.y;
     if (sel) {
       c.strokeStyle = "rgba(255,211,77,0.7)"; c.lineWidth = 0.04; c.setLineDash([0.2, 0.15]);
-      c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.tx, p.ty); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.moveTo(p.x, p.y);
+      for (const waypoint of p.path) c.lineTo(waypoint.x, waypoint.y);
+      if (!p.path.length) c.lineTo(p.tx, p.ty);
+      c.stroke(); c.setLineDash([]);
       c.fillStyle = "rgba(255,211,77,0.05)"; c.strokeStyle = "rgba(255,211,77,0.35)";
       c.beginPath(); c.arc(p.x, p.y, range, 0, TAU); c.fill(); c.stroke();
       c.strokeStyle = "rgba(255,211,77,0.9)"; c.lineWidth = 0.05;
@@ -479,7 +482,7 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     const col = !known ? "130,150,160" : ok ? "140,230,255" : "255,90,60";
     if (known) {
       c.fillStyle = `rgba(${col},0.07)`; c.strokeStyle = `rgba(${col},0.6)`; c.lineWidth = 0.05;
-      c.beginPath(); c.arc(tx + 0.5, ty + 0.5, high ? 7 : 5.5, 0, TAU); c.fill(); c.stroke();
+      c.beginPath(); c.arc(tx + 0.5, ty + 0.5, g.towerRangeAt(tx, ty), 0, TAU); c.fill(); c.stroke();
     }
     c.fillStyle = `rgba(${col},0.35)`; c.strokeStyle = `rgba(${col},0.8)`; c.lineWidth = 0.05;
     poly(c, tx + 0.5, ty + 0.5, 0.48, 8, Math.PI / 8); c.fill(); c.stroke();

@@ -14,7 +14,7 @@ export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
 
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
-type Platoon = { id: number; x: number; y: number; tx: number; ty: number; soldiers: number; hp: number; cd: number };
+type Platoon = { id: number; x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[]; soldiers: number; hp: number; cd: number };
 type Engineer = { id: number; x: number; y: number; hp: number; job: number | null };
 type Tower = { id: number; tx: number; ty: number; built: number; hp: number; cd: number };
 type Tracer = { x1: number; y1: number; x2: number; y2: number; life: number; tower: boolean };
@@ -62,6 +62,8 @@ export class Game {
   constructor(seed = Date.now()) {
     this.rand = rng(seed);
     this.map = this.generate();
+    // A short-range drop scan gives the player a usable landing choice without satellite comms.
+    this.fog.revealArea(W / 2, H / 2, 9);
   }
 
   // ---------- map ----------
@@ -134,13 +136,63 @@ export class Game {
     this.phase = "playing";
     this.platoons.push(this.newPlatoon(this.core.x, this.core.y + 1.5));
     this.engineers.push({ id: this.nid++, x: this.core.x - 1, y: this.core.y, hp: 40, job: null });
-    this.fog.update(this.platoons, this.engineers);
+    this.updateFog();
     this.message = "Platoon down! The swarm is coming. Hold the line.";
     return true;
   }
 
   newPlatoon(tx: number, ty: number): Platoon {
-    return { id: this.nid++, x: this.core.x, y: this.core.y, tx, ty, soldiers: SQUAD, hp: SOLDIER_HP, cd: 0 };
+    const p: Platoon = { id: this.nid++, x: this.core.x, y: this.core.y, tx: this.core.x, ty: this.core.y, path: [], soldiers: SQUAD, hp: SOLDIER_HP, cd: 0 };
+    this.commandPlatoon(p, tx, ty);
+    return p;
+  }
+
+  /** Order infantry along walkable tiles; sheer rock is never a valid shortcut. */
+  commandPlatoon(p: Platoon, x: number, y: number) {
+    if (this.at(Math.floor(x), Math.floor(y)) === ROCK) {
+      this.message = "Infantry can't cross sheer rock.";
+      return false;
+    }
+    const path = this.findInfantryPath(p.x, p.y, x, y);
+    if (!path.length) {
+      this.message = "No infantry route to that position.";
+      return false;
+    }
+    p.tx = x; p.ty = y; p.path = path;
+    return true;
+  }
+
+  findInfantryPath(sx: number, sy: number, tx: number, ty: number) {
+    const startX = Math.floor(sx), startY = Math.floor(sy), goalX = Math.floor(tx), goalY = Math.floor(ty);
+    if (this.at(startX, startY) === ROCK || this.at(goalX, goalY) === ROCK) return [];
+    const start = startY * W + startX, goal = goalY * W + goalX;
+    if (start === goal) return [{ x: tx, y: ty }];
+    const came = new Int32Array(W * H); came.fill(-1); came[start] = start;
+    const queue = [start];
+    for (let head = 0; head < queue.length; head++) {
+      const cur = queue[head];
+      if (cur === goal) break;
+      const x = cur % W, y = (cur / W) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H || this.at(nx, ny) === ROCK) continue;
+        // Do not cut diagonally between two impassable rock tiles.
+        if (dx && dy && (this.at(x + dx, y) === ROCK || this.at(x, y + dy) === ROCK)) continue;
+        const next = ny * W + nx;
+        if (came[next] !== -1) continue;
+        came[next] = cur; queue.push(next);
+      }
+    }
+    if (came[goal] === -1) return [];
+    const path: { x: number; y: number }[] = [];
+    let cur = goal;
+    while (cur !== start) {
+      path.push({ x: (cur % W) + 0.5, y: ((cur / W) | 0) + 0.5 });
+      cur = came[cur];
+    }
+    path.reverse();
+    path[path.length - 1] = { x: tx, y: ty };
+    return path;
   }
 
   // ---------- commands ----------
@@ -171,7 +223,7 @@ export class Game {
     const p = this.platoons.find((p) => Math.hypot(p.x - x, p.y - y) < 0.9);
     if (p) { this.selected = p.id; return; }
     const sel = this.platoons.find((p) => p.id === this.selected);
-    if (sel && this.at(Math.floor(x), Math.floor(y)) !== ROCK) { sel.tx = x; sel.ty = y; }
+    if (sel) this.commandPlatoon(sel, x, y);
   }
 
   // ---------- simulation ----------
@@ -248,10 +300,17 @@ export class Game {
       return best;
     };
 
-    // platoons
+    // platoons follow tile-safe routes instead of crossing rock in a straight line
     for (const p of this.platoons) {
-      const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
-      if (d > 0.1) { p.x += (dx / d) * Math.min(d, 2.4 * dt); p.y += (dy / d) * Math.min(d, 2.4 * dt); }
+      let movement = 2.4 * dt;
+      while (movement > 0 && p.path.length) {
+        const waypoint = p.path[0], dx = waypoint.x - p.x, dy = waypoint.y - p.y, d = Math.hypot(dx, dy);
+        if (d <= movement || d < 0.02) {
+          p.x = waypoint.x; p.y = waypoint.y; p.path.shift(); movement -= d;
+        } else {
+          p.x += (dx / d) * movement; p.y += (dy / d) * movement; movement = 0;
+        }
+      }
       p.cd -= dt;
       const high = this.at(Math.floor(p.x), Math.floor(p.y)) === HIGH;
       const tg = nearestBug(p.x, p.y, high ? 6.5 : 4.2);
@@ -288,7 +347,7 @@ export class Game {
     for (const t of this.towers) {
       if (t.built < 1) continue;
       t.cd -= dt;
-      const tg = nearestBug(t.tx + 0.5, t.ty + 0.5, this.at(t.tx, t.ty) === HIGH ? 7 : 5.5);
+      const tg = nearestBug(t.tx + 0.5, t.ty + 0.5, this.towerRangeAt(t.tx, t.ty));
       if (tg && t.cd <= 0) {
         t.cd = 0.12; tg.hp -= 9;
         this.tracers.push({ x1: t.tx + 0.5, y1: t.ty + 0.5, x2: tg.x, y2: tg.y, life: 0.06, tower: true });
@@ -309,12 +368,21 @@ export class Game {
     this.splats = this.splats.filter((s) => s.life > 0);
     if (this.splats.length > 400) this.splats.splice(0, this.splats.length - 400);
 
-    this.fog.update(this.platoons, this.engineers);
+    this.updateFog();
 
     // win / lose
     if (this.core.hp <= 0) { this.phase = "lost"; this.message = "The LZ has been overrun."; }
     else if (!this.platoons.length && !this.engineers.length) { this.phase = "lost"; this.message = "All units lost. The beachhead falls."; }
     else if (this.t >= WIN_AFTER && this.t - this.lastDeath >= HOLD_NEEDED) { this.phase = "won"; this.message = "The defenses hold. Beachhead secured!"; }
+  }
+
+  towerRangeAt(tx: number, ty: number) { return this.at(tx, ty) === HIGH ? 7 : 5.5; }
+
+  updateFog() {
+    const towerVision = this.towers.filter((t) => t.built >= 1).map((t) => ({
+      x: t.tx + 0.5, y: t.ty + 0.5, range: this.towerRangeAt(t.tx, t.ty),
+    }));
+    this.fog.update(this.platoons, this.engineers, towerVision);
   }
 
   holdTime() { return Math.max(0, this.t - Math.max(this.lastDeath, 0)); }
