@@ -1,5 +1,7 @@
 // @ts-nocheck -- hot-loop typed-array/grid indexing; strict indexed-access checks are disabled for this file only.
 // Klendathu Beachhead — pure game simulation + canvas renderer (no React).
+import { FogOfWar } from "./fog";
+
 export const T = 20;
 export let W = 48;
 export let H = 32;
@@ -34,6 +36,7 @@ export class Game {
   rand: () => number;
   map: Uint8Array;
   dist = new Float32Array(W * H);
+  fog = new FogOfWar(W, H);
   bg: HTMLCanvasElement | null = null;
   phase: "landing" | "playing" | "won" | "lost" = "landing";
   core = { x: 0, y: 0, hp: 600, max: 600 };
@@ -131,6 +134,7 @@ export class Game {
     this.phase = "playing";
     this.platoons.push(this.newPlatoon(this.core.x, this.core.y + 1.5));
     this.engineers.push({ id: this.nid++, x: this.core.x - 1, y: this.core.y, hp: 40, job: null });
+    this.fog.update(this.platoons, this.engineers);
     this.message = "Platoon down! The swarm is coming. Hold the line.";
     return true;
   }
@@ -304,6 +308,8 @@ export class Game {
     for (const s of this.splats) s.life -= dt;
     this.splats = this.splats.filter((s) => s.life > 0);
     if (this.splats.length > 400) this.splats.splice(0, this.splats.length - 400);
+
+    this.fog.update(this.platoons, this.engineers);
 
     // win / lose
     if (this.core.hp <= 0) { this.phase = "lost"; this.message = "The LZ has been overrun."; }
