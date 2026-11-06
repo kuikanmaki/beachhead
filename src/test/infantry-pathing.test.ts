@@ -24,14 +24,15 @@ describe("infantry pathing", () => {
   });
 
   it("rejects a destination sealed off by rock", () => {
-    setMapSize(1);
+    setMapSize(2);
     const game = new Game(12);
     game.map.fill(GROUND);
-    const startX = Math.floor(game.core.x), startY = Math.floor(game.core.y);
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
-      game.map[(startY + dy) * 64 + startX + dx] = ROCK;
+    game.core.x = 10.5; game.core.y = 10.5;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (dx || dy) game.map[(10 + dy) * 64 + 10 + dx] = ROCK;
     }
     const platoon = game.newPlatoon(game.core.x, game.core.y);
+    platoon.path = [];
     expect(game.commandPlatoon(platoon, game.core.x + 5, game.core.y)).toBe(false);
     expect(platoon.path).toHaveLength(0);
   });
