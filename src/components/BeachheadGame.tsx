@@ -22,9 +22,12 @@ export function BeachheadGame() {
   const [dragging, setDragging] = useState(false);
   const [mode, setModeState] = useState<Mode>("select");
   const [mute, setMute] = useState(false);
+  const [satellite, setSatellite] = useState(true);
+  const satelliteRef = useRef(true);
   const [, setTick] = useState(0);
   const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
   const toggleMute = () => setMute((m) => { setMuted(!m); return !m; });
+  const toggleSatellite = () => setSatellite((on) => { satelliteRef.current = !on; return !on; });
   const applyZoom = (next: number, u = 0.5, v = 0.5) => {
     cameraRef.current = zoomCamera(cameraRef.current, next, u, v);
     setZoom(cameraRef.current.zoom);
@@ -42,7 +45,7 @@ export function BeachheadGame() {
         if (cv.width !== W * T * RS || cv.height !== H * T * RS) { cv.width = W * T * RS; cv.height = H * T * RS; }
         g.update(dt);
         audioTick(g, dt);
-        renderGame(g, cv.getContext("2d")!, hoverRef.current, modeRef.current, cameraRef.current);
+        renderGame(g, cv.getContext("2d")!, hoverRef.current, modeRef.current, cameraRef.current, satelliteRef.current);
       }
       hud += dt;
       if (hud > 0.15) { hud = 0; setTick((t) => t + 1); }
@@ -110,7 +113,11 @@ export function BeachheadGame() {
     if (g.phase === "landing") return void g.land(Math.floor(p.x), Math.floor(p.y));
     if (g.phase !== "playing") return;
     if (modeRef.current === "platoon") { if (g.dropPlatoon(p.x, p.y) && !e.shiftKey) setMode("select"); }
-    else if (modeRef.current === "tower") { if (g.placeTower(Math.floor(p.x), Math.floor(p.y)) && !e.shiftKey) setMode("select"); }
+    else if (modeRef.current === "tower") {
+      if (!satelliteRef.current && g.fog.stateAt(p.x, p.y, false) === 0) {
+        g.message = "Unexplored sector. Move ground troops there to scout it.";
+      } else if (g.placeTower(Math.floor(p.x), Math.floor(p.y)) && !e.shiftKey) setMode("select");
+    }
     else g.click(p.x, p.y);
   };
   const onContext = (e: React.MouseEvent) => {
@@ -142,14 +149,15 @@ export function BeachheadGame() {
         onMouseMove={(e) => (hoverRef.current = toWorld(e))}
         onMouseLeave={() => (hoverRef.current = null)}
       />
-      {g && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} zoom={zoom} applyZoom={applyZoom} resetView={resetView} />}
+      {g && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} zoom={zoom} applyZoom={applyZoom} resetView={resetView} satellite={satellite} toggleSatellite={toggleSatellite} />}
     </div>
   );
 }
 
-function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom, resetView }: {
+function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom, resetView, satellite, toggleSatellite }: {
   g: Game; mode: Mode; setMode: (m: Mode) => void; mute: boolean; toggleMute: () => void; fmt: (s: number) => string; restart: () => void;
   zoom: number; applyZoom: (next: number) => void; resetView: () => void;
+  satellite: boolean; toggleSatellite: () => void;
 }) {
   const hold = g.phase === "playing" ? g.holdTime() : 0;
   const soldiers = g.platoons.reduce((a, p) => a + p.soldiers, 0);
@@ -172,6 +180,22 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
 
       {/* right sidebar */}
       <aside className="absolute bottom-4 right-4 top-20 flex w-56 flex-col gap-2 overflow-y-auto font-mono text-sm">
+        <div className="hud-panel flex items-center justify-between gap-3 bg-card/80 backdrop-blur-sm">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Satellite comms</p>
+            <p className={`mt-1 text-xs ${satellite ? "text-primary" : "text-muted-foreground"}`}>{satellite ? "ON · full orbital map" : "OFF · ground vision"}</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={satellite}
+            aria-label="Satellite comms"
+            onClick={toggleSatellite}
+            className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${satellite ? "border-primary bg-primary/30" : "border-border bg-muted"}`}
+          >
+            <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full transition-transform ${satellite ? "translate-x-5 bg-primary" : "translate-x-0 bg-muted-foreground"}`} />
+          </button>
+        </div>
         <div className="hud-panel bg-card/80 backdrop-blur-sm">
           <Stat label="LZ core" value={`${Math.max(0, Math.ceil(g.core.hp))}/${g.core.max}`} />
           <Stat label="Troopers" value={`${soldiers} in ${g.platoons.length} plt`} />
@@ -205,6 +229,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
           <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
           <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
           <p className="mt-1">Scroll to zoom around your cursor. Click and drag to pan while zoomed. Press 0 to reset.</p>
+          <p className="mt-1">With satellite comms off, troops reveal nearby ground. Explored areas stay dim; enemies need current sight.</p>
           <p className="mt-1">You only hear what your troops hear.</p>
         </div>
       </aside>
@@ -218,7 +243,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
 
       {g.phase === "landing" && (
         <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded-sm border border-primary/40 bg-background/85 px-4 py-2 font-mono text-sm text-primary">
-          Click open ground to land your first platoon
+          {satellite ? "Click open ground to land your first platoon" : "Blind drop: click to land, then scout with ground troops"}
         </div>
       )}
       {(g.phase === "won" || g.phase === "lost") && (
