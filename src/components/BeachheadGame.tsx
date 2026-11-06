@@ -126,7 +126,7 @@ export function BeachheadGame() {
     if (!g) return;
     if (modeRef.current !== "select") return setMode("select");
     const sel = g.platoons.find((x) => x.id === g.selected);
-    if (sel) { sel.tx = p.x; sel.ty = p.y; }
+    if (sel) g.commandPlatoon(sel, p.x, p.y);
   };
   const restart = () => { gameRef.current = freshGame(); setMode("select"); resetView(); };
 
@@ -229,7 +229,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
           <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
           <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
           <p className="mt-1">Scroll to zoom around your cursor. Click and drag to pan while zoomed. Press 0 to reset.</p>
-          <p className="mt-1">With satellite comms off, troops reveal nearby ground. Explored areas stay dim; enemies need current sight.</p>
+          <p className="mt-1">With satellite comms off, troops and completed MG towers reveal ground. Explored areas stay dim; enemies need current sight.</p>
           <p className="mt-1">You only hear what your troops hear.</p>
         </div>
       </aside>
@@ -243,7 +243,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
 
       {g.phase === "landing" && (
         <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded-sm border border-primary/40 bg-background/85 px-4 py-2 font-mono text-sm text-primary">
-          {satellite ? "Click open ground to land your first platoon" : "Blind drop: click to land, then scout with ground troops"}
+          {satellite ? "Click open ground to land your first platoon" : "Drop scan online: click open ground in the lit landing area"}
         </div>
       )}
       {(g.phase === "won" || g.phase === "lost") && (
