@@ -484,6 +484,7 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   }
 
   if (g.hasCruiser) cruiser(c, g, now); else core(c, g, now);
+  for (const w of g.walls) wall(c, w, now);
   for (const t of g.towers) tower(c, g, t, now, dt, towerFire.has(`${t.tx + 0.5},${t.ty + 0.5}`));
 
   // bugs: satellite sees everything; otherwise only current troop vision reveals contacts.
