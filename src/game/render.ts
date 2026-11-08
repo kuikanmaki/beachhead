@@ -530,16 +530,24 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     bar(c, p.x, p.y - (p.kind === "squad" ? 1.55 : 0.85), p.soldiers / maxInfantrySoldiers(p), p.kind === "squad" ? 1.8 : 0.9);
   }
 
-  // engineers
+  // Single engineers in Level 1; compact four-person construction teams in Level 2.
   for (const e of g.engineers) {
     const s = get(e, 0, e.x, e.y);
     const mx = e.x - s.px, my = e.y - s.py, moving = mx * mx + my * my > 1e-6;
     const job = g.towers.find((t) => t.id === e.job && t.built < 1);
+    const wallJob = g.activeWallJob(e.id), segment = wallJob ? g.nextWallSegment(wallJob) : undefined;
     if (moving) s.ang = turn(s.ang, Math.atan2(my, mx), dt * 8);
+    else if (segment) s.ang = turn(s.ang, Math.atan2(segment.ty + 0.5 - e.y, segment.tx + 0.5 - e.x), dt * 8);
     else if (job) s.ang = turn(s.ang, Math.atan2(job.ty + 0.5 - e.y, job.tx + 0.5 - e.x), dt * 8);
     s.px = e.x; s.py = e.y;
-    trooper(c, e.x, e.y, s.ang, "#b0873a", "#ffb347", false, false);
-    if (job && !moving && Math.random() < 0.6) {
+    const ca = Math.cos(s.ang), sa = Math.sin(s.ang);
+    const formation = [[0.25, 0], [-0.1, -0.25], [-0.1, 0.25], [-0.42, 0]];
+    for (let i = 0; i < e.members; i++) {
+      const [fx, fy] = formation[i];
+      trooper(c, e.x + fx * ca - fy * sa, e.y + fx * sa + fy * ca, s.ang, "#b0873a", "#ffb347", false, false);
+    }
+    const building = (job || (segment && segment.paid)) && !moving;
+    if (building && Math.random() < 0.6) {
       const a = Math.random() * TAU;
       parts.push({ x: e.x + Math.cos(s.ang) * 0.3, y: e.y + Math.sin(s.ang) * 0.3, vx: Math.cos(a) * 2, vy: Math.sin(a) * 2, life: 0.25, max: 0.25, col: "160,220,255", r: 0.04 });
     }
