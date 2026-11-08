@@ -1,5 +1,6 @@
 # Current update
 
+- [x] Cancel unfinished towers and wall projects on assigned engineer death; verify replacement engineers cannot resume them.
 - [x] Allow cruiser landings over ships and installations; remove covered structures and verify preservation outside the footprint.
 - [x] Make Level 2 opening attacks require forward-deployed squads to protect wall builders.
 - [x] Verify unprotected construction fails while a good forward defense can win with sacrifices.
