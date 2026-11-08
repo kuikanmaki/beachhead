@@ -262,15 +262,17 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
       </header>
 
       {/* right sidebar */}
-      <aside className="absolute bottom-4 right-4 top-20 flex w-56 flex-col gap-2 overflow-y-auto font-mono text-sm">
-        <div className="hud-panel bg-card/80 backdrop-blur-sm">
+      <aside className="absolute bottom-4 right-4 top-20 flex w-52 flex-col gap-2 overflow-y-auto font-mono text-sm">
+        <div className="hud-panel bg-card/80 backdrop-blur-sm" aria-label="Battle status">
           <Stat label={g.hasCruiser ? "Command cruiser" : "LZ core"} value={`${Math.max(0, Math.ceil(g.core.hp))}/${g.core.max}`} />
-          <Stat label="Troopers" value={soldiers} />
-          <Stat label="Teams / squads" value={`${teamCount} / ${squadCount}`} />
-          <Stat label={g.hasCruiser ? "Engineer teams" : "Engineers"} value={g.engineers.length} />
-          <Stat label="Towers" value={`${g.towers.filter((t) => t.built >= 1).length} (+${g.towers.filter((t) => t.built < 1).length})`} />
-          {g.hasCruiser && <Stat label="Wall segments" value={`${completedWalls} / ${g.walls.length}`} />}
-          <Stat label="Bugs" value={g.bugs.length} />
+          <div className="mt-1 grid grid-cols-2 gap-x-3 border-t border-border/60 pt-1">
+            <CompactStat label="Troopers" value={soldiers} />
+            <CompactStat label="Bugs" value={g.bugs.length} />
+            <CompactStat label="Teams/squads" value={`${teamCount} / ${squadCount}`} />
+            <CompactStat label={g.hasCruiser ? "Eng. teams" : "Engineers"} value={g.engineers.length} />
+            <CompactStat label="Towers (+build)" value={`${g.towers.filter((t) => t.built >= 1).length} (+${g.towers.filter((t) => t.built < 1).length})`} />
+            {g.hasCruiser && <CompactStat label="Walls done/all" value={`${completedWalls} / ${g.walls.length}`} />}
+          </div>
         </div>
         {g.level === 1 ? (
           <div className="hud-panel bg-card/80 backdrop-blur-sm">
@@ -289,8 +291,8 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
             <p className={`mt-2 text-sm ${g.perimeter.sealed ? "text-success" : "text-foreground"}`}>{g.perimeter.sealed ? "Perimeter sealed" : "Perimeter open"}</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               {g.perimeter.sealed
-                ? g.perimeter.enemiesInside ? `${g.perimeter.enemiesInside} live ${g.perimeter.enemiesInside === 1 ? "enemy" : "enemies"} inside. Clear them to complete the level.` : "Perimeter clear. Securing landing zone…"
-                : "Encircle the cruiser with walls and/or sheer rock. Outside enemies do not block completion."}
+                ? g.perimeter.enemiesInside ? `Clear ${g.perimeter.enemiesInside} ${g.perimeter.enemiesInside === 1 ? "enemy" : "enemies"} inside.` : "Perimeter clear. Securing landing zone…"
+                : "Seal with walls or rock; clear enemies inside."}
             </p>
           </div>
         )}
@@ -310,15 +312,9 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
             </button>
           )}
         </div>
-        <div className="hud-panel mt-auto bg-card/75 text-xs leading-relaxed text-muted-foreground backdrop-blur-sm">
-          <p>Click a unit to select; left-click ground to move a team or squad. Right-click or press Esc to unselect.</p>
-          <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
-          <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
-          {g.hasCruiser && <p className="mt-1 text-primary">Choose [4] Build Wall, then drag a line. Engineer teams build from your starting point to the end; each segment costs {COST.wall} credits.</p>}
-          {g.hasCruiser && <p className="mt-1">Seal the cruiser with walls and rock, then eliminate every live enemy inside.</p>}
-          <p className="mt-1">Scroll to zoom around your cursor. Click and drag to pan while zoomed. Press 0 to reset.</p>
-          <p className="mt-1">You only hear what your troops hear.</p>
-        </div>
+        <button className="hud-btn mt-auto bg-card/80 text-xs backdrop-blur-sm" onClick={openBriefing} aria-label="Open field manual">
+          <span>Field manual</span><span>[?]</span>
+        </button>
       </aside>
 
       {selectedName && (
@@ -365,11 +361,78 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
   );
 }
 
+function FieldManual({ g, fmt, onClose }: { g: Game; fmt: (s: number) => string; onClose: () => void }) {
+  const levelTwo = g.level === 2;
+  const starting = g.phase === "landing" || g.phase === "shipLanding";
+  return (
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+      <section className="max-h-full w-full max-w-3xl overflow-y-auto rounded-sm border border-primary/40 bg-card/95 p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="field-manual-title">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-primary">{starting ? `Level ${g.level} briefing` : "Field manual · Battle paused"}</p>
+            <h2 id="field-manual-title" className="mt-1 font-display text-3xl uppercase tracking-wide">{levelTwo ? "Secure the cruiser" : "Establish the beachhead"}</h2>
+          </div>
+          {!starting && <button className="hud-btn px-2 py-1 font-mono text-xs" onClick={onClose} aria-label="Close field manual">Close [Esc]</button>}
+        </div>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          {levelTwo
+            ? "Land the cruiser, encircle it with walls and/or sheer rock, then eliminate every live enemy inside. Forward-deploy squads to protect wall-building engineer teams."
+            : `Land your first team and hold the LZ. After ${fmt(WIN_AFTER)}, survive ${fmt(HOLD_NEEDED)} without an infantry casualty to secure the beachhead.`}
+        </p>
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <ManualPanel title="Command">
+            <p>Click a unit to select; left-click ground to move it. Right-click or Esc unselects.</p>
+            <p>[1] Drop {levelTwo ? "Squad" : "Team"} · [2] {levelTwo ? "Engineer Team" : "Engineer"} · [3] MG Tower{levelTwo ? " · [4] Build Wall" : ""}</p>
+            <p>Shift-click placement to repeat. New movable units are selected automatically.</p>
+          </ManualPanel>
+          <ManualPanel title="Construction">
+            <p>Engineers automatically build marked towers.</p>
+            {levelTwo && <p>Drag a wall line; engineer teams build from start to finish. Each segment costs {COST.wall} credits.</p>}
+            <p>If a builder dies, unfinished work is cancelled. Completed wall segments remain.</p>
+          </ManualPanel>
+          <ManualPanel title="Terrain">
+            <p><span className="text-primary">Light tan high ground</span> extends range, reduces damage taken, and slows bugs.</p>
+            <p>Sheer rock is impassable{levelTwo ? " and can form part of the cruiser perimeter" : "; infantry must go around it"}.</p>
+            {levelTwo && <p>The cruiser removes installations beneath its landing footprint; troops and defenses outside carry over.</p>}
+          </ManualPanel>
+          <ManualPanel title="View & sound">
+            <p>Scroll to zoom around the cursor. Drag to pan while zoomed; press 0 to reset.</p>
+            <p>Press M to toggle sound. You only hear combat and construction near your troops.</p>
+            <p>Press ? anytime to reopen this manual and pause the battle.</p>
+          </ManualPanel>
+        </div>
+        <div className="mt-5 flex items-center justify-between gap-4 border-t border-border/60 pt-4">
+          <p className="font-mono text-xs text-muted-foreground">{starting ? "Review the briefing, then choose your landing site." : "The simulation is paused while this manual is open."}</p>
+          <button autoFocus className="hud-btn hud-btn-primary shrink-0" onClick={onClose}>{starting ? levelTwo ? "Choose cruiser site" : "Choose landing site" : "Return to battle"}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ManualPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-sm border border-border/70 bg-secondary/35 p-4 font-mono text-xs leading-relaxed text-muted-foreground">
+      <h3 className="mb-2 uppercase tracking-widest text-primary">{title}</h3>
+      <div className="flex flex-col gap-2">{children}</div>
+    </div>
+  );
+}
+
 function TopStat({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
   return (
     <div className="text-right">
       <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
       <p className={`text-lg leading-none ${accent ? "text-primary" : ""}`}>{value}</p>
+    </div>
+  );
+}
+
+function CompactStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="min-w-0 py-0.5">
+      <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p>{value}</p>
     </div>
   );
 }
