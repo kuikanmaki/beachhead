@@ -21,9 +21,9 @@ describe("infantry organisation", () => {
   it("lands a four-person team in Level 1", () => {
     const game = landedGame();
     expect(game.infantry).toHaveLength(1);
-    expect(game.infantry[0].kind).toBe("team");
-    expect(game.infantry[0].fireTeams).toBe(1);
-    expect(game.infantry[0].soldiers).toBe(TEAM_SIZE);
+    expect(game.infantry[0]!.kind).toBe("team");
+    expect(game.infantry[0]!.fireTeams).toBe(1);
+    expect(game.infantry[0]!.soldiers).toBe(TEAM_SIZE);
     expect(TEAM_SIZE).toBe(4);
   });
 
