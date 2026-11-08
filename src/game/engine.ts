@@ -237,7 +237,7 @@ export class Game {
     this.fog.revealArea(this.core.x, this.core.y, 7);
     this.updateFog();
     this.perimeter = this.perimeterStatus();
-    this.message = "Cruiser down! Drag wall lines with [4] and seal the landing zone.";
+    this.message = "Cruiser down! Forward-deploy squads to protect engineers, then drag wall lines with [4].";
     return true;
   }
 

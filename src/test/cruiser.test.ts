@@ -76,7 +76,7 @@ describe("second-stage command cruiser", () => {
     expect(engineer.y).toBe(game.core.y);
   });
 
-  it("starts with a smaller horde while retaining stronger second-stage enemies", () => {
+  it("opens with a larger horde while retaining stronger second-stage enemies", () => {
     setMapSize(2);
     const first = new Game(30), second = new Game(30);
     for (const game of [first, second]) {
@@ -90,7 +90,7 @@ describe("second-stage command cruiser", () => {
     first.update(0.01);
     second.update(0.01);
     expect(second.wave).toBe(1);
-    expect(second.bugs.length).toBe(20);
+    expect(second.bugs.length).toBe(42);
     expect(first.bugs.length).toBe(22);
 
     const levelOne = new Game(31), levelTwo = new Game(31);
@@ -122,15 +122,15 @@ describe("second-stage command cruiser", () => {
     expect(game.bugs).toHaveLength(0);
     expect(game.wave).toBe(0);
     expect(game.spawnAcc).toBe(0);
-    expect(game.nextHorde - game.t).toBe(25);
+    expect(game.nextHorde - game.t).toBe(18);
   });
 
-  it("allows 12 enemy-free seconds, then sends scouts before the first horde", () => {
+  it("allows 6 enemy-free seconds, then sends scouts before the first horde", () => {
     const game = gameWithCruiser();
     game.t = 1000;
     game.levelStartedAt = 1000;
-    game.nextHorde = 1025;
-    for (let i = 0; i < 120; i++) game.update(0.1);
+    game.nextHorde = 1018;
+    for (let i = 0; i < 60; i++) game.update(0.1);
     expect(game.bugs).toHaveLength(0);
     expect(game.wave).toBe(0);
     for (let i = 0; i < 60; i++) game.update(0.1);
@@ -152,7 +152,7 @@ describe("second-stage command cruiser", () => {
       sizes.push(game.bugs.length);
       intervals.push(Math.round(game.nextHorde - game.t));
     }
-    expect(sizes).toEqual([20, 28, 36]);
+    expect(sizes).toEqual([42, 54, 66]);
     expect(intervals).toEqual([60, 55, 50]);
   });
 
@@ -164,8 +164,8 @@ describe("second-stage command cruiser", () => {
     late.levelStartedAt = 1000;
     early.spawnBug(0);
     late.spawnBug(0);
-    expect(early.bugs[0]?.hp).toBe(54);
-    expect(late.bugs[0]?.hp).toBe(94);
+    expect(early.bugs[0]?.hp).toBeCloseTo(54.8);
+    expect(late.bugs[0]?.hp).toBeCloseTo(94.8);
   });
 
   it("keeps the second stage running beyond the first-stage victory condition", () => {
