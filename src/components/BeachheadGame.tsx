@@ -47,6 +47,7 @@ export function BeachheadGame() {
 
   useEffect(() => {
     gameRef.current = freshGame();
+    if (import.meta.env.DEV) (window as unknown as { __beachhead: { current: Game } }).__beachhead = gameRef;
     setTick((t) => t + 1);
     let raf = 0, last = performance.now(), hud = 0;
     const loop = (now: number) => {
