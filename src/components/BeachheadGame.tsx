@@ -371,27 +371,26 @@ function FieldManual({ g, fmt, onClose }: { g: Game; fmt: (s: number) => string;
     return (
       <div className="absolute inset-0 z-30 flex items-center justify-center overflow-y-auto bg-background/80 px-6 py-8 sm:px-12">
         <section className="my-auto w-full max-w-2xl text-center" role="dialog" aria-modal="true" aria-labelledby="opening-title">
-          <p className="font-mono text-xs uppercase text-primary">Level 1 · Hold the line</p>
-          <h2 id="opening-title" className="mt-3 font-display text-6xl uppercase leading-none sm:text-8xl">Beachhead</h2>
-          <p className="mt-4 text-base text-foreground/90 sm:text-lg">Land. Dig in. Survive the swarm.</p>
+          <h2 id="opening-title" className="font-display text-6xl uppercase leading-none sm:text-8xl">Beachhead</h2>
+          <p className="mt-4 text-base text-foreground/90 sm:text-lg">Hold the beachhead against the swarm.</p>
           <ol className="mt-9 grid grid-cols-3 gap-4 border-y border-border/70 py-6 sm:mt-12 sm:gap-8 sm:py-8">
             <li className="flex min-w-0 flex-col items-center gap-3">
               <MapPin className="size-8 text-primary" strokeWidth={1.5} aria-hidden="true" />
-              <div><h3 className="font-display text-xl uppercase sm:text-2xl">Land a team</h3><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Choose open ground.</p></div>
+              <h3 className="font-display text-xl uppercase sm:text-2xl">Land troops</h3>
             </li>
             <li className="flex min-w-0 flex-col items-center gap-3">
               <Crosshair className="size-8 text-destructive" strokeWidth={1.5} aria-hidden="true" />
-              <div><h3 className="font-display text-xl uppercase sm:text-2xl">Hold the bugs</h3><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Troops fire automatically.</p></div>
+              <h3 className="font-display text-xl uppercase sm:text-2xl">Hold the line</h3>
             </li>
             <li className="flex min-w-0 flex-col items-center gap-3">
               <TowerControl className="size-8 text-success" strokeWidth={1.5} aria-hidden="true" />
-              <div><h3 className="font-display text-xl uppercase sm:text-2xl">Build towers</h3><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Engineers build your defenses.</p></div>
+              <h3 className="font-display text-xl uppercase sm:text-2xl">Build towers</h3>
             </li>
           </ol>
-          <p className="mt-5 text-sm text-muted-foreground">Win: {fmt(HOLD_NEEDED)} without troop losses, after {fmt(WIN_AFTER)}.</p>
+          <p className="mx-auto mt-5 max-w-sm text-sm leading-relaxed text-muted-foreground">Keep your troops alive until your towers can hold the line.</p>
           <div className="mt-8 flex flex-col items-center gap-3">
-            <Button autoFocus size="lg" className="h-12 w-full max-w-64 font-mono uppercase" onClick={onClose}>Start drop <ArrowRight aria-hidden="true" /></Button>
-            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowDetails(true)}><BookOpen aria-hidden="true" /> Field manual</Button>
+            <Button autoFocus size="lg" className="h-12 w-full max-w-64 font-mono uppercase" onClick={onClose}>Play <ArrowRight aria-hidden="true" /></Button>
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowDetails(true)}><BookOpen aria-hidden="true" /> How to play</Button>
           </div>
         </section>
       </div>
