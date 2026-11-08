@@ -421,7 +421,7 @@ export class Game {
       positions[spans.length - 1] = length;
       for (let i = spans.length - 1; i > 0; i--) {
         const previous = reachable[i - 1], position = positions[i];
-        const low = Math.max(previous.low, position - 1);
+        const low = Math.max(previous.low, position - maxGap);
         const high = Math.min(previous.high, position - epsilon);
         if (low > high + epsilon) { possible = false; break; }
         positions[i - 1] = i === 1 ? 0 : high;
