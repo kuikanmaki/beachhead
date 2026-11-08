@@ -528,24 +528,48 @@ export class Game {
     this.infantry = this.infantry.filter((p) => p.soldiers > 0);
     if (this.selected && !this.infantry.some((p) => p.id === this.selected)) this.selected = null;
 
-    // engineers
+    // Engineer teams prioritize queued wall lines, then return to automatic tower construction.
+    for (const job of this.wallJobs) {
+      if (!this.nextWallSegment(job)) continue;
+      const assigned = this.engineers.some((e) => e.id === job.engineerId && e.kind === "team" && e.members > 0);
+      if (!assigned) { job.engineerId = null; this.assignWallJob(job); }
+    }
     for (const e of this.engineers) {
-      let job = this.towers.find((t) => t.id === e.job && t.built < 1);
-      if (!job) {
+      const wallJob = this.activeWallJob(e.id), segment = wallJob ? this.nextWallSegment(wallJob) : undefined;
+      let job = segment ? undefined : this.towers.find((t) => t.id === e.job && t.built < 1);
+      if (!segment && !job) {
         e.job = null;
         const free = this.towers.filter((t) => t.built < 1 && !this.engineers.some((o) => o.job === t.id));
         const any = free.length ? free : this.towers.filter((t) => t.built < 1);
         any.sort((a, b) => Math.hypot(a.tx - e.x, a.ty - e.y) - Math.hypot(b.tx - e.x, b.ty - e.y));
         job = any[0]; if (job) e.job = job.id;
       }
-      const gx = job ? job.tx + 0.5 : this.core.x - 1, gy = job ? job.ty + 1.2 : this.core.y + 0.8;
+      const gx = segment ? segment.tx + 0.5 : job ? job.tx + 0.5 : this.core.x - 1;
+      const gy = segment ? segment.ty + 0.5 : job ? job.ty + 1.2 : this.core.y + 0.8;
       const dx = gx - e.x, dy = gy - e.y, d = Math.hypot(dx, dy);
       if (d > 0.15) { e.x += (dx / d) * Math.min(d, 2.6 * dt); e.y += (dy / d) * Math.min(d, 2.6 * dt); }
+      else if (segment) {
+        if (!segment.paid) {
+          if (this.credits >= COST.wall) { this.credits -= COST.wall; segment.paid = true; }
+          else if (this.t - this.lastWallCreditWarning >= 2) {
+            this.lastWallCreditWarning = this.t;
+            this.message = `Wall construction paused: ${COST.wall} credits needed for the next segment.`;
+          }
+        }
+        if (segment.paid) {
+          segment.built = Math.min(1, segment.built + dt / WALL_BUILD_TIME);
+          if (segment.built >= 1 && !this.wallGrid[segment.ty * W + segment.tx]) {
+            this.wallGrid[segment.ty * W + segment.tx] = 1;
+            this.computeFlow();
+            this.message = `Wall segment secured. ${this.walls.filter((w) => w.built >= 1).length} completed.`;
+          }
+        }
+      }
       else if (job) job.built = Math.min(1, job.built + dt / 6);
     }
     this.engineers = this.engineers.filter((e) => {
-      if (e.hp <= 0) this.splats.push({ x: e.x, y: e.y, life: 30, r: 0.3, green: false });
-      return e.hp > 0;
+      if (e.members <= 0 || e.hp <= 0) this.splats.push({ x: e.x, y: e.y, life: 30, r: 0.3, green: false });
+      return e.members > 0 && e.hp > 0;
     });
 
     // towers
