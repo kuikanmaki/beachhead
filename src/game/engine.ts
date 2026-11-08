@@ -156,7 +156,9 @@ export class Game {
     this.bg = null;
     this.phase = "playing";
     this.infantry.push(this.newInfantry(this.core.x, this.core.y + 1.5));
-    this.engineers.push({ id: this.nid++, x: this.core.x - 1, y: this.core.y, hp: 40, job: null });
+    const engineer = this.newEngineer("engineer");
+    engineer.x = this.core.x - 1;
+    this.engineers.push(engineer);
     this.updateFog();
     this.message = "Team down! The swarm is coming. Hold the line.";
     return true;
