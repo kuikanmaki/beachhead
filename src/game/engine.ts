@@ -142,6 +142,10 @@ export class Game {
     }
   }
 
+  newEngineer(kind: Engineer["kind"]): Engineer {
+    return { id: this.nid++, kind, members: kind === "team" ? ENGINEER_TEAM_SIZE : 1, x: this.core.x, y: this.core.y, hp: 40, job: null };
+  }
+
   land(tx: number, ty: number) {
     if (this.phase !== "landing" || this.at(tx, ty) === ROCK) return false;
     for (let y = ty - 2; y <= ty + 2; y++) for (let x = tx - 2; x <= tx + 2; x++) if (this.at(x, y) !== ROCK || (x >= 0 && y >= 0 && x < W && y < H)) {
