@@ -3,7 +3,7 @@ export type TowerVision = VisionUnit & { range: number };
 export type FogState = 0 | 1 | 2; // unexplored, explored, currently visible
 
 const SAMPLES_PER_TILE = 4;
-export const PLATOON_VISION = 5.5;
+export const INFANTRY_VISION = 5.5;
 export const ENGINEER_VISION = 4.5;
 
 /** Persistent ground exploration plus a fresh ring of vision around living troops and completed towers. */
@@ -25,9 +25,9 @@ export class FogOfWar {
     this.reveal(x, y, radius);
   }
 
-  update(platoons: VisionUnit[], engineers: VisionUnit[], towers: TowerVision[] = []) {
+  update(infantry: VisionUnit[], engineers: VisionUnit[], towers: TowerVision[] = []) {
     this.visible.fill(0);
-    for (const p of platoons) this.reveal(p.x, p.y, PLATOON_VISION);
+    for (const p of infantry) this.reveal(p.x, p.y, INFANTRY_VISION);
     for (const e of engineers) this.reveal(e.x, e.y, ENGINEER_VISION);
     for (const t of towers) this.reveal(t.x, t.y, t.range);
   }

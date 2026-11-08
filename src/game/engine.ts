@@ -9,20 +9,24 @@ export let H = 32;
 export function setMapSize(aspect: number) { H = 32; W = Math.max(32, Math.min(80, Math.round(32 * aspect))); }
 export const GROUND = 0, HIGH = 1, ROCK = 2;
 
-export const COST = { platoon: 60, engineer: 80, tower: 120 };
+export const COST = { team: 60, squad: 180, engineer: 80, tower: 120 };
 export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
 export const CRUISER_RADIUS = 3; // clear 7×7-tile landing footprint
 export const CRUISER_HP = 1400;
 
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
-type Platoon = { id: number; x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[]; soldiers: number; hp: number; cd: number };
+export type InfantryKind = "team" | "squad";
+export type Infantry = { id: number; kind: InfantryKind; fireTeams: number; x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[]; soldiers: number; hp: number; cd: number };
 type Engineer = { id: number; x: number; y: number; hp: number; job: number | null };
 type Tower = { id: number; tx: number; ty: number; built: number; hp: number; cd: number };
 type Tracer = { x1: number; y1: number; x2: number; y2: number; life: number; tower: boolean };
 type Splat = { x: number; y: number; life: number; r: number; green: boolean };
 
-const SOLDIER_HP = 20, SQUAD = 5;
+const SOLDIER_HP = 20;
+// US Marine benchmark: four per fire team; three fire teams plus one squad leader.
+export const TEAM_SIZE = 4, SQUAD_FIRE_TEAMS = 3, SQUAD_SIZE = TEAM_SIZE * SQUAD_FIRE_TEAMS + 1;
+export const maxInfantrySoldiers = (unit: Infantry) => unit.kind === "squad" ? SQUAD_SIZE : TEAM_SIZE;
 const C = {
   ground: "#8a6a45", ground2: "#7d5f3d", high: "#b08a58", high2: "#c49a63", rock: "#3d2c22", rock2: "#2c201a",
   bug: "#2b1a12", bugEye: "#e8492a", tank: "#4a1f10", inf: "#9fd0ff", infSel: "#ffd34d", eng: "#ffb347",
@@ -45,7 +49,7 @@ export class Game {
   hasCruiser = false;
   core = { x: 0, y: 0, hp: 600, max: 600 };
   bugs: Bug[] = [];
-  platoons: Platoon[] = [];
+  infantry: Infantry[] = [];
   engineers: Engineer[] = [];
   towers: Tower[] = [];
   tracers: Tracer[] = [];
