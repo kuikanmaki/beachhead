@@ -117,6 +117,11 @@ export class Game {
   }
 
   at(x: number, y: number) { return x < 0 || y < 0 || x >= W || y >= H ? ROCK : this.map[y * W + x]; }
+  wallAt(tx: number, ty: number) { return this.walls.find((w) => w.tx === tx && w.ty === ty); }
+  /** Only finished walls block enemies; infantry and engineers can still cross their own lines. */
+  isEnemyBlocked(tx: number, ty: number) {
+    return this.at(tx, ty) === ROCK || (tx >= 0 && ty >= 0 && tx < W && ty < H && this.wallGrid[ty * W + tx] === 1);
+  }
 
   computeFlow() {
     const d = this.dist; d.fill(Infinity);
