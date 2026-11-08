@@ -122,19 +122,22 @@ describe("second-stage command cruiser", () => {
     expect(game.bugs).toHaveLength(0);
     expect(game.wave).toBe(0);
     expect(game.spawnAcc).toBe(0);
-    expect(game.nextHorde - game.t).toBe(90);
+    expect(game.nextHorde - game.t).toBe(45);
   });
 
-  it("allows 60 enemy-free seconds even after a long first level", () => {
+  it("allows 12 enemy-free seconds, then sends scouts before the first horde", () => {
     const game = gameWithCruiser();
     game.t = 1000;
     game.levelStartedAt = 1000;
-    game.nextHorde = 1090;
-    for (let i = 0; i < 600; i++) game.update(0.1);
+    game.nextHorde = 1045;
+    for (let i = 0; i < 120; i++) game.update(0.1);
     expect(game.bugs).toHaveLength(0);
     expect(game.wave).toBe(0);
-    for (let i = 0; i < 100; i++) game.update(0.1);
+    for (let i = 0; i < 180; i++) game.update(0.1);
     expect(game.bugs.length).toBeGreaterThan(0);
+    expect(game.wave).toBe(0);
+    for (let i = 0; i < 151; i++) game.update(0.1);
+    expect(game.wave).toBe(1);
   });
 
   it("grows successive hordes and shortens their intervals gradually", () => {
@@ -155,9 +158,9 @@ describe("second-stage command cruiser", () => {
 
   it("scales enemy health with Level 2 time rather than previous mission duration", () => {
     const early = gameWithCruiser(), late = gameWithCruiser();
-    early.t = 1060;
+    early.t = 1012;
     early.levelStartedAt = 1000;
-    late.t = 1360;
+    late.t = 1312;
     late.levelStartedAt = 1000;
     early.spawnBug(0);
     late.spawnBug(0);
