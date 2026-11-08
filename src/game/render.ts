@@ -319,7 +319,12 @@ function cruiser(c: CanvasRenderingContext2D, g: Game, now: number) {
 }
 
 function wall(c: CanvasRenderingContext2D, w: any, now: number) {
-  const x = w.tx, y = w.ty;
+  const cx = w.x ?? w.tx + 0.5, cy = w.y ?? w.ty + 0.5;
+  c.save();
+  c.translate(cx, cy);
+  c.rotate(w.angle ?? 0);
+  // Draw in local tile coordinates so every part of the segment follows the drag angle.
+  const x = -0.5, y = -0.5;
   if (w.built < 1) {
     c.fillStyle = w.paid ? "rgba(255,179,71,0.18)" : "rgba(120,130,130,0.12)";
     c.fillRect(x + 0.06, y + 0.16, 0.88, 0.68);
@@ -327,26 +332,28 @@ function wall(c: CanvasRenderingContext2D, w: any, now: number) {
     c.setLineDash([0.12, 0.09]); c.strokeRect(x + 0.06, y + 0.16, 0.88, 0.68); c.setLineDash([]);
     if (w.paid) {
       c.strokeStyle = "#ffd37a"; c.lineWidth = 0.065;
-      c.beginPath(); c.arc(x + 0.5, y + 0.5, 0.31, -Math.PI / 2, -Math.PI / 2 + TAU * w.built); c.stroke();
+      c.beginPath(); c.arc(0, 0, 0.31, -Math.PI / 2, -Math.PI / 2 + TAU * w.built); c.stroke();
     }
+    c.restore();
     return;
   }
-  shadow(c, x + 0.5, y + 0.58, 0.53, 0.4, 0.5);
-  const armor = c.createLinearGradient(x, y, x, y + 1);
+  shadow(c, 0, 0.08, 0.53, 0.4, 0.5);
+  const armor = c.createLinearGradient(0, y, 0, y + 1);
   armor.addColorStop(0, "#9aa29a"); armor.addColorStop(0.35, "#626c65"); armor.addColorStop(1, "#303934");
   c.fillStyle = armor; c.fillRect(x, y + 0.12, 1, 0.76);
   c.fillStyle = "#b6bdb2"; c.fillRect(x, y + 0.12, 1, 0.09);
   c.fillStyle = "#252d29"; c.fillRect(x, y + 0.78, 1, 0.1);
   c.strokeStyle = "rgba(15,20,17,0.75)"; c.lineWidth = 0.035;
   c.strokeRect(x + 0.02, y + 0.14, 0.96, 0.72);
-  c.beginPath(); c.moveTo(x + 0.5, y + 0.2); c.lineTo(x + 0.5, y + 0.8); c.stroke();
+  c.beginPath(); c.moveTo(0, y + 0.2); c.lineTo(0, y + 0.8); c.stroke();
   c.fillStyle = "#d2a849";
   for (const offset of [0.12, 0.62]) {
     c.beginPath(); c.moveTo(x + offset, y + 0.25); c.lineTo(x + offset + 0.16, y + 0.25);
     c.lineTo(x + offset + 0.04, y + 0.39); c.lineTo(x + offset - 0.12, y + 0.39); c.closePath(); c.fill();
   }
-  const pulse = 0.45 + Math.sin(now * 2 + x * 0.7 + y) * 0.15;
+  const pulse = 0.45 + Math.sin(now * 2 + cx * 0.7 + cy) * 0.15;
   c.fillStyle = `rgba(120,220,180,${pulse})`; c.fillRect(x + 0.43, y + 0.07, 0.14, 0.05);
+  c.restore();
 }
 
 function tower(c: CanvasRenderingContext2D, g: Game, t: any, now: number, dt: number, firing: boolean) {

@@ -16,7 +16,7 @@ function cruiserGame(seed = 70) {
 
 function finishWall(game: Game, tx: number, ty: number) {
   if (game.wallGrid[ty * 64 + tx]) return;
-  game.walls.push({ id: game.nid++, jobId: -1, tx, ty, built: 1, paid: true });
+  game.walls.push({ id: game.nid++, jobId: -1, tx, ty, x: tx + 0.5, y: ty + 0.5, angle: 0, built: 1, paid: true });
   game.wallGrid[ty * 64 + tx] = 1;
 }
 
