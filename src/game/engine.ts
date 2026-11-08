@@ -428,7 +428,11 @@ export class Game {
       }
     }
     return spans.map((span, i) => {
-      const position = possible ? positions[i] : i === 0 ? 0 : i === spans.length - 1 ? length : (span.start + span.end) / 2;
+      let position = possible ? positions[i] : i === 0 ? 0 : i === spans.length - 1 ? length : (span.start + span.end) / 2;
+      // Keep interior centers just inside their own tile instead of on a shared grid boundary.
+      if (i > 0 && i < spans.length - 1 && span.end - span.start > epsilon * 4) {
+        position = Math.max(span.start + epsilon, Math.min(span.end - epsilon, position));
+      }
       const f = position / length;
       return { tx: span.tx, ty: span.ty, x: x1 + dx * f, y: y1 + dy * f, angle };
     });
