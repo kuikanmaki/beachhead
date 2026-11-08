@@ -468,7 +468,10 @@ export class Game {
         const hg = this.at(Math.floor(p.x), Math.floor(p.y)) === HIGH ? 0.55 : 1;
         p.hp -= d * hg; while (p.hp <= 0 && p.soldiers > 0) { const over = -p.hp; this.killSoldier(p); p.hp -= over; }
       } });
-      for (const e of this.engineers) targets.push({ x: e.x, y: e.y, hit: (d) => (e.hp -= d) });
+      for (const e of this.engineers) targets.push({ x: e.x, y: e.y, hit: (d) => {
+        e.hp -= d;
+        while (e.hp <= 0 && e.members > 0) { const over = -e.hp; e.members--; e.hp = 40; e.hp -= over; }
+      } });
       for (const t of this.towers) targets.push({ x: t.tx + 0.5, y: t.ty + 0.5, hit: (d) => (t.hp -= d) });
       targets.push({ x: this.core.x, y: this.core.y, hit: (d) => (this.core.hp -= d) });
       let best = null, bd = 1.6;
