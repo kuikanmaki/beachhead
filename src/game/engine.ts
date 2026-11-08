@@ -21,8 +21,9 @@ export const LEVEL_TWO_FIRST_HORDE = 18;
 
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
 export type InfantryKind = "team" | "squad";
-export type Infantry = { id: number; kind: InfantryKind; fireTeams: number; x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[]; soldiers: number; hp: number; cd: number };
-export type Engineer = { id: number; kind: "engineer" | "team"; members: number; x: number; y: number; hp: number; job: number | null };
+type MovableUnit = { x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[] };
+export type Infantry = MovableUnit & { id: number; kind: InfantryKind; fireTeams: number; soldiers: number; hp: number; cd: number };
+export type Engineer = MovableUnit & { id: number; kind: "engineer" | "team"; members: number; hp: number; job: number | null; manualMove: boolean };
 type Tower = { id: number; tx: number; ty: number; built: number; hp: number; cd: number };
 export type WallSegment = { id: number; jobId: number; tx: number; ty: number; x: number; y: number; angle: number; built: number; paid: boolean };
 export type WallJob = { id: number; engineerId: number | null; wallIds: number[] };
@@ -146,7 +147,7 @@ export class Game {
   }
 
   newEngineer(kind: Engineer["kind"]): Engineer {
-    return { id: this.nid++, kind, members: kind === "team" ? ENGINEER_TEAM_SIZE : 1, x: this.core.x, y: this.core.y, hp: 40, job: null };
+    return { id: this.nid++, kind, members: kind === "team" ? ENGINEER_TEAM_SIZE : 1, x: this.core.x, y: this.core.y, tx: this.core.x, ty: this.core.y, path: [], hp: 40, job: null, manualMove: false };
   }
 
   land(tx: number, ty: number) {
@@ -271,15 +272,15 @@ export class Game {
     return p;
   }
 
-  /** One order moves the entire team or all three fire teams in a squad together. */
-  commandInfantry(p: Infantry, x: number, y: number) {
+  /** Shared movement order for every troop type, including engineers. */
+  commandInfantry(p: MovableUnit, x: number, y: number) {
     if (this.at(Math.floor(x), Math.floor(y)) === ROCK) {
-      this.message = "Infantry can't cross sheer rock.";
+      this.message = "Units can't cross sheer rock.";
       return false;
     }
     const path = this.findInfantryPath(p.x, p.y, x, y);
     if (!path.length) {
-      this.message = "No infantry route to that position.";
+      this.message = "No route to that position.";
       return false;
     }
     p.tx = x; p.ty = y; p.path = path;
@@ -317,6 +318,18 @@ export class Game {
     path.reverse();
     path[path.length - 1] = { x: tx, y: ty };
     return path;
+  }
+
+  /** Existing infantry waypoint movement, shared with engineering units. */
+  private advanceMovement(p: MovableUnit, movement: number) {
+    while (movement > 0 && p.path.length) {
+      const waypoint = p.path[0], dx = waypoint.x - p.x, dy = waypoint.y - p.y, d = Math.hypot(dx, dy);
+      if (d <= movement || d < 0.02) {
+        p.x = waypoint.x; p.y = waypoint.y; p.path.shift(); movement -= d;
+      } else {
+        p.x += (dx / d) * movement; p.y += (dy / d) * movement; movement = 0;
+      }
+    }
   }
 
   // ---------- commands ----------
@@ -454,8 +467,8 @@ export class Game {
     if (p) { this.selected = p.id; return; }
     const engineer = this.engineers.find((e) => Math.hypot(e.x - x, e.y - y) < 0.9);
     if (engineer) { this.selected = engineer.id; return; }
-    const selectedInfantry = this.infantry.find((unit) => unit.id === this.selected);
-    if (selectedInfantry) this.commandInfantry(selectedInfantry, x, y);
+    const selectedUnit = this.infantry.find((unit) => unit.id === this.selected) ?? this.engineers.find((unit) => unit.id === this.selected);
+    if (selectedUnit && this.commandInfantry(selectedUnit, x, y) && "manualMove" in selectedUnit) selectedUnit.manualMove = true;
   }
 
   // ---------- simulation ----------
@@ -548,15 +561,7 @@ export class Game {
 
     // Teams and squads follow tile-safe routes instead of crossing rock in a straight line.
     for (const p of this.infantry) {
-      let movement = 2.4 * dt;
-      while (movement > 0 && p.path.length) {
-        const waypoint = p.path[0], dx = waypoint.x - p.x, dy = waypoint.y - p.y, d = Math.hypot(dx, dy);
-        if (d <= movement || d < 0.02) {
-          p.x = waypoint.x; p.y = waypoint.y; p.path.shift(); movement -= d;
-        } else {
-          p.x += (dx / d) * movement; p.y += (dy / d) * movement; movement = 0;
-        }
-      }
+      this.advanceMovement(p, 2.4 * dt);
       p.cd -= dt;
       const high = this.at(Math.floor(p.x), Math.floor(p.y)) === HIGH;
       const tg = nearestBug(p.x, p.y, high ? 6.5 : 4.2);
@@ -589,6 +594,11 @@ export class Game {
       if (!assigned) { job.engineerId = null; this.assignWallJob(job); }
     }
     for (const e of this.engineers) {
+      if (e.manualMove) {
+        this.advanceMovement(e, 2.6 * dt);
+        if (!e.path.length) e.manualMove = false;
+        continue;
+      }
       const wallJob = this.activeWallJob(e.id), segment = wallJob ? this.nextWallSegment(wallJob) : undefined;
       let job = segment ? undefined : this.towers.find((t) => t.id === e.job && t.built < 1);
       if (!segment && !job) {
@@ -598,10 +608,14 @@ export class Game {
         any.sort((a, b) => Math.hypot(a.tx - e.x, a.ty - e.y) - Math.hypot(b.tx - e.x, b.ty - e.y));
         job = any[0]; if (job) e.job = job.id;
       }
-      const gx = segment ? segment.x : job ? job.tx + 0.5 : this.core.x - 1;
-      const gy = segment ? segment.y : job ? job.ty + 1.2 : this.core.y + 0.8;
+      if (!segment && !job) continue;
+      const gx = segment ? segment.x : job.tx + 0.5;
+      const gy = segment ? segment.y : this.at(job.tx, Math.floor(job.ty + 1.2)) === ROCK ? job.ty + 0.5 : job.ty + 1.2;
       const dx = gx - e.x, dy = gy - e.y, d = Math.hypot(dx, dy);
-      if (d > 0.15) { e.x += (dx / d) * Math.min(d, 2.6 * dt); e.y += (dy / d) * Math.min(d, 2.6 * dt); }
+      if (d > 0.15) {
+        if (e.tx !== gx || e.ty !== gy || !e.path.length) this.commandInfantry(e, gx, gy);
+        this.advanceMovement(e, 2.6 * dt);
+      }
       else if (segment) {
         if (!segment.paid) {
           if (this.credits >= COST.wall) { this.credits -= COST.wall; segment.paid = true; }
