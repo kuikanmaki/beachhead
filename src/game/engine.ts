@@ -477,7 +477,7 @@ export class Game {
     while (this.spawnAcc >= 1) { this.spawnAcc--; this.spawnBug(); }
     if (this.t >= this.nextHorde) {
       this.wave++;
-      const n = (this.hasCruiser ? 16 : 14) + this.wave * (this.hasCruiser ? 10 : 8);
+      const n = (this.hasCruiser ? 30 : 14) + this.wave * (this.hasCruiser ? 12 : 8);
       for (let i = 0; i < n; i++) this.spawnBug(this.wave >= 3 && i % 12 === 0 ? 2 : undefined);
       this.nextHorde += this.hasCruiser ? Math.max(40, 65 - this.wave * 5) : 45;
       this.message = `HORDE ${this.wave} INBOUND — ${n} bugs!`;
