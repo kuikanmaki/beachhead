@@ -484,7 +484,7 @@ export class Game {
         let bv = this.dist[cy * W + cx], bx = cx, by = cy;
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
           const nx = cx + dx, ny = cy + dy;
-          if (this.at(nx, ny) === ROCK || (dx && dy && (this.at(cx + dx, cy) === ROCK || this.at(cx, cy + dy) === ROCK))) continue;
+          if (this.isEnemyBlocked(nx, ny) || (dx && dy && (this.isEnemyBlocked(cx + dx, cy) || this.isEnemyBlocked(cx, cy + dy)))) continue;
           const v = this.dist[ny * W + nx] + (dx && dy ? 0.4 : 0);
           if (v < bv) { bv = v; bx = nx; by = ny; }
         }
