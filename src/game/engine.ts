@@ -135,7 +135,7 @@ export class Game {
       const x = cur % W, y = (cur / W) | 0;
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = x + dx, ny = y + dy, tt = this.at(nx, ny);
-        if (tt === ROCK) continue;
+        if (this.isEnemyBlocked(nx, ny)) continue;
         const nd = d[cur] + (tt === HIGH ? 2.5 : 1);
         if (nd < d[ny * W + nx]) { if (d[ny * W + nx] === Infinity) open.push(ny * W + nx); d[ny * W + nx] = nd; }
       }
