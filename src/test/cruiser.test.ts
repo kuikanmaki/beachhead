@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CRUISER_HP, Game, GROUND, HOLD_NEEDED, ROCK, SQUAD_SIZE, WIN_AFTER, setMapSize } from "@/game/engine";
 
-function gameWithCruiser() {
+function gameWithCruiser(seed = 21) {
   setMapSize(2);
-  const game = new Game(21);
+  const game = new Game(seed);
   game.map.fill(GROUND);
   game.land(16, 16);
   game.phase = "won";
@@ -122,19 +122,22 @@ describe("second-stage command cruiser", () => {
     expect(game.bugs).toHaveLength(0);
     expect(game.wave).toBe(0);
     expect(game.spawnAcc).toBe(0);
-    expect(game.nextHorde - game.t).toBe(90);
+    expect(game.nextHorde - game.t).toBe(25);
   });
 
-  it("allows 60 enemy-free seconds even after a long first level", () => {
+  it("allows 12 enemy-free seconds, then sends scouts before the first horde", () => {
     const game = gameWithCruiser();
     game.t = 1000;
     game.levelStartedAt = 1000;
-    game.nextHorde = 1090;
-    for (let i = 0; i < 600; i++) game.update(0.1);
+    game.nextHorde = 1025;
+    for (let i = 0; i < 120; i++) game.update(0.1);
     expect(game.bugs).toHaveLength(0);
     expect(game.wave).toBe(0);
-    for (let i = 0; i < 100; i++) game.update(0.1);
+    for (let i = 0; i < 60; i++) game.update(0.1);
     expect(game.bugs.length).toBeGreaterThan(0);
+    expect(game.wave).toBe(0);
+    for (let i = 0; i < 71; i++) game.update(0.1);
+    expect(game.wave).toBe(1);
   });
 
   it("grows successive hordes and shortens their intervals gradually", () => {
@@ -155,9 +158,9 @@ describe("second-stage command cruiser", () => {
 
   it("scales enemy health with Level 2 time rather than previous mission duration", () => {
     const early = gameWithCruiser(), late = gameWithCruiser();
-    early.t = 1060;
+    early.t = 1012;
     early.levelStartedAt = 1000;
-    late.t = 1360;
+    late.t = 1312;
     late.levelStartedAt = 1000;
     early.spawnBug(0);
     late.spawnBug(0);
@@ -177,5 +180,31 @@ describe("second-stage command cruiser", () => {
 
     expect(game.t).toBeGreaterThan(WIN_AFTER + HOLD_NEEDED);
     expect(game.phase).toBe("playing");
+  });
+
+  it("lets a well-defended wall plan win under pressure with troop sacrifices", () => {
+    const game = gameWithCruiser(23);
+    game.credits = 1000;
+    expect(game.dropSquad(game.core.x - 1, game.core.y)).toBe(true);
+    expect(game.dropSquad(game.core.x + 1, game.core.y)).toBe(true);
+    const cx = Math.floor(game.core.x), cy = Math.floor(game.core.y), r = 4;
+    game.buildWall(cx - r + 0.5, cy - r + 0.5, cx + r + 0.5, cy - r + 0.5);
+    game.buildWall(cx + r + 0.5, cy - r + 0.5, cx + r + 0.5, cy + r + 0.5);
+    game.buildWall(cx + r + 0.5, cy + r + 0.5, cx - r + 0.5, cy + r + 0.5);
+    game.buildWall(cx - r + 0.5, cy + r + 0.5, cx - r + 0.5, cy - r + 0.5);
+
+    for (let i = 0; i < 2400 && game.phase === "playing"; i++) game.update(0.05);
+
+    expect(game.phase).toBe("won");
+    expect(game.walls.filter((wall) => wall.built >= 1)).toHaveLength(32);
+    expect(game.deaths).toBeGreaterThan(0);
+    expect(game.kills).toBeGreaterThan(0);
+  });
+
+  it("overwhelms an undefended cruiser during the escalating attacks", () => {
+    const game = gameWithCruiser(20);
+    for (let i = 0; i < 1800 && game.phase === "playing"; i++) game.update(0.05);
+    expect(game.phase).toBe("lost");
+    expect(game.core.hp).toBeLessThanOrEqual(0);
   });
 });
