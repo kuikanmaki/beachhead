@@ -1,6 +1,6 @@
 # Current update
 
-- [ ] Refine the arcade opening: game name first, plain-language goal, minimal reading; verify play and optional help.
+- [x] Refine the arcade opening: game name first, plain-language goal, minimal reading; verify play and optional help.
 - [x] Simplify the opening and Level 1 briefing; verify starting, landing, and optional help.
 - [x] Declutter the right-side overlay; retain essential status and move detailed guidance into pausing level briefings and a field manual.
 - [x] Remove Satellite Comms controls and keep map, contacts, and placement permanently visible.
