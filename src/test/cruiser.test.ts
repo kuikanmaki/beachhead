@@ -96,9 +96,10 @@ describe("second-stage command cruiser", () => {
     levelTwo.hasCruiser = true;
     levelOne.spawnBug(0);
     levelTwo.spawnBug(0);
-    expect(levelTwo.bugs[0].hp).toBeGreaterThan(levelOne.bugs[0].hp);
-    expect(levelTwo.bugs[0].dmg).toBeGreaterThan(levelOne.bugs[0].dmg);
-    expect(levelTwo.bugs[0].speed).toBeGreaterThan(levelOne.bugs[0].speed);
+    const firstBug = levelOne.bugs[0]!, secondBug = levelTwo.bugs[0]!;
+    expect(secondBug.hp).toBeGreaterThan(firstBug.hp);
+    expect(secondBug.dmg).toBeGreaterThan(firstBug.dmg);
+    expect(secondBug.speed).toBeGreaterThan(firstBug.speed);
   });
 
   it("keeps the second stage running beyond the first-stage victory condition", () => {
