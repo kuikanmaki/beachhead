@@ -16,8 +16,8 @@ export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
 export const CRUISER_RADIUS = 3; // clear 7×7-tile landing footprint
 export const CRUISER_HP = 1400;
-export const LEVEL_TWO_GRACE = 12;
-export const LEVEL_TWO_FIRST_HORDE = 25;
+export const LEVEL_TWO_GRACE = 6;
+export const LEVEL_TWO_FIRST_HORDE = 18;
 
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
 export type InfantryKind = "team" | "squad";
@@ -237,7 +237,7 @@ export class Game {
     this.fog.revealArea(this.core.x, this.core.y, 7);
     this.updateFog();
     this.perimeter = this.perimeterStatus();
-    this.message = "Cruiser down! Drag wall lines with [4] and seal the landing zone.";
+    this.message = "Cruiser down! Forward-deploy squads to protect engineers, then drag wall lines with [4].";
     return true;
   }
 
@@ -471,13 +471,13 @@ export class Game {
     const levelElapsed = this.t - this.levelStartedAt;
     const attackElapsed = Math.max(0, levelElapsed - LEVEL_TWO_GRACE);
     const spawnRate = this.hasCruiser
-      ? levelElapsed <= LEVEL_TWO_GRACE ? 0 : (0.15 + attackElapsed / 120) * 1.35
+      ? levelElapsed <= LEVEL_TWO_GRACE ? 0 : (0.3 + attackElapsed / 110) * 1.35
       : 0.35 + this.t / 120;
     this.spawnAcc += dt * spawnRate;
     while (this.spawnAcc >= 1) { this.spawnAcc--; this.spawnBug(); }
     if (this.t >= this.nextHorde) {
       this.wave++;
-      const n = (this.hasCruiser ? 12 : 14) + this.wave * 8;
+      const n = (this.hasCruiser ? 30 : 14) + this.wave * (this.hasCruiser ? 12 : 8);
       for (let i = 0; i < n; i++) this.spawnBug(this.wave >= 3 && i % 12 === 0 ? 2 : undefined);
       this.nextHorde += this.hasCruiser ? Math.max(40, 65 - this.wave * 5) : 45;
       this.message = `HORDE ${this.wave} INBOUND — ${n} bugs!`;
