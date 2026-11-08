@@ -100,9 +100,11 @@ describe("Level 2 engineer teams and walls", () => {
     const team = game.infantry[0]!;
     team.x = 12.9; team.y = 16.5; team.path = [];
     game.bugs.push({ x: 11.4, y: 16.5, hp: 10000, max: 10000, speed: 5, dmg: 0, r: 0.32, kind: 0, bounty: 0 });
-    game.update(0.1);
-    expect(game.bugs[0]!.x).toBeLessThan(12);
-    expect(game.bugs[0]!.x).toBeCloseTo(11.4);
+    for (let i = 0; i < 5; i++) {
+      game.update(0.1);
+      expect(game.bugs[0]!.x).toBeLessThan(12);
+    }
+    expect(game.bugs[0]!.x).toBeGreaterThan(11.4);
   });
 });
 
