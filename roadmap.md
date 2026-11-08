@@ -9,4 +9,4 @@
 - [x] Verify defended walls remain achievable with casualties and undefended cruisers fall.
 - [x] Add intuitive unselect for teams, squads, engineers, and engineer teams.
 - [x] Auto-select every newly deployed movable unit and replace previous selections.
-- [x] Pass all 42 tests; verify selection controls and the Level 2 transition in the live preview.
+- [x] Pass all 45 tests; verify forward squad deployment and Level 2 victory in the live preview.

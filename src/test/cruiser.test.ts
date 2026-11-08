@@ -185,7 +185,7 @@ describe("second-stage command cruiser", () => {
   it("lets forward-deployed squads protect wall construction with troop sacrifices", () => {
     const game = gameWithCruiser(20);
     game.credits = 1000;
-    for (const [dx, dy] of [[-6, 0], [6, 0], [0, -6], [0, 6]]) {
+    for (const [dx, dy] of [[-6, 0], [6, 0], [0, -6], [0, 6]] as const) {
       expect(game.dropSquad(game.core.x + dx, game.core.y + dy)).toBe(true);
     }
     const cx = Math.floor(game.core.x), cy = Math.floor(game.core.y), r = 4;
