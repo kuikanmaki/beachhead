@@ -466,8 +466,8 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   }
   for (const b of g.bugs) if (b.kind === 2 && g.fog.stateAt(b.x, b.y, satellite) === 2) bar(c, b.x, b.y - b.r - 0.45, b.hp / b.max, 1.1);
 
-  // platoons
-  for (const p of g.platoons) {
+  // Teams and squads: every soldier shares the selected unit's movement and target.
+  for (const p of g.infantry) {
     const sel = p.id === g.selected, s = get(p, -Math.PI / 2, p.x, p.y);
     const high = g.at(Math.floor(p.x), Math.floor(p.y)) === HIGH, range = high ? 6.5 : 4.2;
     const tg = nearest(g, p.x, p.y, range);
@@ -542,7 +542,7 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     c.fillStyle = `rgba(${col},0.35)`; c.strokeStyle = `rgba(${col},0.8)`; c.lineWidth = 0.05;
     poly(c, tx + 0.5, ty + 0.5, 0.48, 8, Math.PI / 8); c.fill(); c.stroke();
   }
-  if (hover && mode === "platoon") {
+  if (hover && mode === "infantry") {
     const pulse = 0.5 + Math.sin(now * 6) * 0.5;
     c.strokeStyle = "rgba(140,200,255,0.9)"; c.lineWidth = 0.05;
     c.beginPath(); c.arc(hover.x, hover.y, 0.5 + pulse * 0.3, 0, TAU); c.stroke();

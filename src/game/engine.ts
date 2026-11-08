@@ -513,7 +513,7 @@ export class Game {
     for (const e of this.engineers) {
       ctx.fillStyle = C.eng; ctx.beginPath(); ctx.moveTo(e.x * T, e.y * T - 6); ctx.lineTo(e.x * T + 6, e.y * T + 5); ctx.lineTo(e.x * T - 6, e.y * T + 5); ctx.fill();
     }
-    // platoons
+    // infantry teams and squads
     for (const p of this.infantry) {
       const sel = p.id === this.selected;
       if (sel) {
@@ -522,11 +522,11 @@ export class Game {
         ctx.strokeStyle = "rgba(255,211,77,0.35)"; ctx.beginPath(); ctx.arc(p.x * T, p.y * T, (high ? 6.5 : 4.2) * T, 0, 7); ctx.stroke();
       }
       for (let i = 0; i < p.soldiers; i++) {
-        const a = (i / SQUAD) * Math.PI * 2;
+        const a = (i / maxInfantrySoldiers(p)) * Math.PI * 2;
         ctx.fillStyle = sel ? C.infSel : C.inf;
         ctx.beginPath(); ctx.arc(p.x * T + Math.cos(a) * 6, p.y * T + Math.sin(a) * 6, 3, 0, 7); ctx.fill();
       }
-      this.bar(ctx, p.x, p.y - 0.8, p.soldiers / SQUAD, 1);
+      this.bar(ctx, p.x, p.y - 0.8, p.soldiers / maxInfantrySoldiers(p), 1);
     }
     // bugs
     for (const b of this.bugs) {
@@ -550,7 +550,7 @@ export class Game {
       ctx.strokeRect(Math.floor(hover.x) * T, Math.floor(hover.y) * T, T, T);
       ctx.beginPath(); ctx.arc((Math.floor(hover.x) + 0.5) * T, (Math.floor(hover.y) + 0.5) * T, (high ? 7 : 5.5) * T, 0, 7); ctx.stroke();
     }
-    if (hover && mode === "platoon") {
+    if (hover && mode === "infantry") {
       ctx.strokeStyle = "rgba(159,208,255,0.8)"; ctx.beginPath(); ctx.arc(hover.x * T, hover.y * T, 8, 0, 7); ctx.stroke();
     }
   }
