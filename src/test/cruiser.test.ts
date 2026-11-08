@@ -139,8 +139,6 @@ describe("second-stage command cruiser", () => {
 
   it("grows successive hordes and shortens their intervals gradually", () => {
     const game = gameWithCruiser();
-    game.infantry = [];
-    game.engineers = [];
     const sizes: number[] = [];
     const intervals: number[] = [];
     for (let wave = 0; wave < 3; wave++) {
