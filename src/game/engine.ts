@@ -16,8 +16,6 @@ export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
 export const CRUISER_RADIUS = 3; // 7×7-tile landing footprint
 export const CRUISER_HP = 1400;
-export const LEVEL_TWO_GRACE = 6;
-export const LEVEL_TWO_FIRST_HORDE = 18;
 
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
 export type InfantryKind = "team" | "squad";
@@ -254,7 +252,7 @@ export class Game {
     this.bugs = [];
     this.wave = 0;
     this.spawnAcc = 0;
-    this.nextHorde = this.t + LEVEL_TWO_FIRST_HORDE;
+    this.nextHorde = this.t;
     this.fog.revealArea(this.core.x, this.core.y, 7);
     this.updateFog();
     this.perimeter = this.perimeterStatus();
@@ -533,7 +531,7 @@ export class Game {
     if (!available.length) return;
     const s = available[Math.floor(this.rand() * available.length)];
     const tankerChance = this.hasCruiser ? 0.14 : 0.08;
-    const elapsed = this.hasCruiser ? Math.max(0, this.t - this.levelStartedAt - LEVEL_TWO_GRACE) : this.t;
+    const elapsed = this.hasCruiser ? Math.max(0, this.t - this.levelStartedAt) : this.t;
     const k = kind ?? (elapsed > 150 && this.rand() < tankerChance ? 2 : this.rand() < 0.3 ? 1 : 0);
     const scale = 1 + elapsed / 300 + (this.level - 1) * 0.35;
     const damageScale = 1 + (this.level - 1) * 0.25;
@@ -558,9 +556,8 @@ export class Game {
 
     // spawning
     const levelElapsed = this.t - this.levelStartedAt;
-    const attackElapsed = Math.max(0, levelElapsed - LEVEL_TWO_GRACE);
     const spawnRate = this.hasCruiser
-      ? levelElapsed <= LEVEL_TWO_GRACE ? 0 : (0.3 + attackElapsed / 110) * 1.35
+      ? (0.3 + levelElapsed / 110) * 1.35
       : 0.35 + this.t / 120;
     this.spawnAcc += dt * spawnRate;
     while (this.spawnAcc >= 1) { this.spawnAcc--; this.spawnBug(); }
