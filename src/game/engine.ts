@@ -598,11 +598,54 @@ export class Game {
     if (this.splats.length > 400) this.splats.splice(0, this.splats.length - 400);
 
     this.updateFog();
+    if (this.hasCruiser) this.perimeter = this.perimeterStatus();
 
     // win / lose
     if (this.core.hp <= 0) { this.phase = "lost"; this.message = this.hasCruiser ? "The command cruiser has been destroyed." : "The LZ has been overrun."; }
     else if (!this.infantry.length && !this.engineers.length) { this.phase = "lost"; this.message = "All units lost. The beachhead falls."; }
     else if (this.level === 1 && this.t >= WIN_AFTER && this.t - this.lastDeath >= HOLD_NEEDED) { this.phase = "won"; this.message = "The defenses hold. Beachhead secured!"; }
+    else if (this.level === 2 && this.perimeter.sealed && this.perimeter.enemiesInside === 0) {
+      this.phase = "won"; this.message = "Perimeter sealed and clear. Landing zone secured!";
+    }
+  }
+
+  /** Flood from the map edges: if outside ground cannot reach the cruiser, its perimeter is sealed. */
+  perimeterStatus(): PerimeterStatus {
+    const size = W * H, exterior = new Uint8Array(size), queue = new Int32Array(size);
+    let head = 0, tail = 0;
+    const addExterior = (tx: number, ty: number) => {
+      const index = ty * W + tx;
+      if (exterior[index] || this.isEnemyBlocked(tx, ty)) return;
+      exterior[index] = 1; queue[tail++] = index;
+    };
+    for (let x = 0; x < W; x++) { addExterior(x, 0); addExterior(x, H - 1); }
+    for (let y = 0; y < H; y++) { addExterior(0, y); addExterior(W - 1, y); }
+    while (head < tail) {
+      const cur = queue[head++], x = cur % W, y = (cur / W) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < W && ny < H) addExterior(nx, ny);
+      }
+    }
+    const coreIndex = Math.floor(this.core.y) * W + Math.floor(this.core.x);
+    if (exterior[coreIndex]) return { sealed: false, enemiesInside: 0 };
+
+    // Only contacts in the cruiser's own sealed region delay completion, not separate pockets or outside hordes.
+    const inside = new Uint8Array(size);
+    head = 0; tail = 0; queue[tail++] = coreIndex; inside[coreIndex] = 1;
+    while (head < tail) {
+      const cur = queue[head++], x = cur % W, y = (cur / W) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const next = ny * W + nx;
+        if (inside[next] || this.isEnemyBlocked(nx, ny)) continue;
+        inside[next] = 1; queue[tail++] = next;
+      }
+    }
+    let enemiesInside = 0;
+    for (const bug of this.bugs) if (bug.hp > 0 && inside[Math.floor(bug.y) * W + Math.floor(bug.x)]) enemiesInside++;
+    return { sealed: true, enemiesInside };
   }
 
   towerRangeAt(tx: number, ty: number) { return this.at(tx, ty) === HIGH ? 7 : 5.5; }
