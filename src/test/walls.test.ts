@@ -76,6 +76,54 @@ describe("Level 2 engineer teams and walls", () => {
     }
   });
 
+  it("rejects an entire line containing sheer rock instead of leaving a gap", () => {
+    const game = cruiserGame(72);
+    game.map[10 * 64 + 11] = ROCK;
+    const plan = game.wallPlan(10.5, 10.5, 12.5, 10.5);
+    expect(plan.tiles).toHaveLength(3);
+    expect(plan.blocked).toBe(1);
+    expect(plan.valid).toBe(false);
+    expect(game.buildWall(10.5, 10.5, 12.5, 10.5)).toBe(false);
+    expect(game.walls).toHaveLength(0);
+    expect(game.wallJobs).toHaveLength(0);
+  });
+
+  it("rejects a line that overlaps an existing wall instead of skipping it", () => {
+    const game = cruiserGame(72);
+    expect(game.buildWall(10.5, 10.5, 12.5, 10.5)).toBe(true);
+    const wallCount = game.walls.length;
+    const jobCount = game.wallJobs.length;
+    const plan = game.wallPlan(9.5, 10.5, 11.5, 10.5);
+    expect(plan.blocked).toBe(2);
+    expect(plan.valid).toBe(false);
+    expect(game.buildWall(9.5, 10.5, 11.5, 10.5)).toBe(false);
+    expect(game.walls).toHaveLength(wallCount);
+    expect(game.wallJobs).toHaveLength(jobCount);
+  });
+
+  it("rejects any line that crosses the map boundary", () => {
+    const game = cruiserGame(72);
+    const plan = game.wallPlan(-0.5, 10.5, 1.5, 10.5);
+    expect(plan.blocked).toBeGreaterThan(0);
+    expect(plan.valid).toBe(false);
+    expect(game.buildWall(-0.5, 10.5, 1.5, 10.5)).toBe(false);
+    expect(game.walls).toHaveLength(0);
+    expect(game.wallJobs).toHaveLength(0);
+  });
+
+  it("keeps every accepted angled line connected without skipped tiles", () => {
+    const game = cruiserGame(72);
+    const plan = game.wallPlan(5.2, 5.3, 12.8, 9.1);
+    expect(plan.valid).toBe(true);
+    expect(plan.continuous).toBe(true);
+    for (let i = 1; i < plan.tiles.length; i++) {
+      const previous = plan.tiles[i - 1]!;
+      const tile = plan.tiles[i]!;
+      expect(Math.max(Math.abs(tile.tx - previous.tx), Math.abs(tile.ty - previous.ty))).toBe(1);
+      expect(Math.hypot(tile.x - previous.x, tile.y - previous.y)).toBeLessThanOrEqual(1.000001);
+    }
+  });
+
   it("builds in drag order and charges once for each completed segment", () => {
     const game = cruiserGame(72);
     game.credits = 1000;

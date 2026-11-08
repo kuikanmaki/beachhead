@@ -444,15 +444,15 @@ export class Game {
     if (this.phase !== "playing" || !this.hasCruiser) return (this.message = "Walls unlock with the Level 2 engineer teams."), false;
     if (!this.engineers.some((e) => e.kind === "team" && e.members > 0)) return (this.message = "Deploy an engineer team before marking a wall."), false;
     const plan = this.wallPlan(x1, y1, x2, y2);
-    if (!plan.buildable.length) return (this.message = "No clear wall sites along that line. Rock and existing structures are skipped."), false;
+    if (!plan.valid) return (this.message = "Wall not started: redraw a continuous line with no red blocked segments."), false;
     const jobId = this.nid++;
     const job: WallJob = { id: jobId, engineerId: null, wallIds: [] };
-    for (const { tx, ty, x, y, angle } of plan.buildable) {
+    for (const { tx, ty, x, y, angle } of plan.tiles) {
       const segment: WallSegment = { id: this.nid++, jobId, tx, ty, x, y, angle, built: 0, paid: false };
       this.walls.push(segment); job.wallIds.push(segment.id);
     }
     this.wallJobs.push(job); this.assignWallJob(job);
-    this.message = `Wall marked: ${plan.buildable.length} segments, built in drag order for ${COST.wall} credits each.`;
+    this.message = `Wall marked: ${plan.tiles.length} connected segments, built in drag order for ${COST.wall} credits each.`;
     return true;
   }
 
