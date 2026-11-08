@@ -224,7 +224,9 @@ export function BeachheadGame() {
         <div className="pointer-events-none absolute bottom-16 left-4 rounded-sm border border-primary/40 bg-card/90 px-3 py-2 font-mono text-xs backdrop-blur-sm" aria-live="polite">
           {(() => {
             const plan = g.wallPlan(wallDraft.x1, wallDraft.y1, wallDraft.x2, wallDraft.y2);
-            return <><p className="text-primary">Wall line · {plan.buildable.length} new segments</p><p className="mt-1 text-muted-foreground">Up to {plan.buildable.length * COST.wall} credits · charged as built{plan.blocked ? ` · ${plan.blocked} occupied sites skipped` : ""}</p></>;
+            return plan.valid
+              ? <><p className="text-primary">Continuous wall · {plan.buildable.length} new segments</p><p className="mt-1 text-muted-foreground">Release to build · up to {plan.buildable.length * COST.wall} credits, charged as built</p></>
+              : <><p className="text-destructive">Wall blocked · nothing will be built</p><p className="mt-1 text-muted-foreground">Redraw so every outlined segment is clear and connected.</p></>;
           })()}
         </div>
       )}
