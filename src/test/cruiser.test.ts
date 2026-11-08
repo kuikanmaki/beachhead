@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CRUISER_HP, Game, GROUND, HOLD_NEEDED, ROCK, SQUAD_SIZE, WIN_AFTER, setMapSize } from "@/game/engine";
+import { CRUISER_HP, ENGINEER_TEAM_SIZE, Game, GROUND, HOLD_NEEDED, ROCK, SQUAD_SIZE, WIN_AFTER, setMapSize } from "@/game/engine";
 
 function gameWithCruiser(seed = 21) {
   setMapSize(2);
