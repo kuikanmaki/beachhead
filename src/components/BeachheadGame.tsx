@@ -219,7 +219,7 @@ export function BeachheadGame() {
         onMouseMove={(e) => (hoverRef.current = toWorld(e))}
         onMouseLeave={() => (hoverRef.current = null)}
       />
-      {g && !(briefingOpen && g.phase === "landing") && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} continueMission={continueMission} zoom={zoom} applyZoom={applyZoom} resetView={resetView} openBriefing={() => setBriefing(true)} />}
+      {g && !(briefingOpen && (g.phase === "landing" || g.phase === "shipLanding")) && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} continueMission={continueMission} zoom={zoom} applyZoom={applyZoom} resetView={resetView} openBriefing={() => setBriefing(true)} />}
       {g && wallDraft && (
         <div className="pointer-events-none absolute bottom-16 left-4 rounded-sm border border-primary/40 bg-card/90 px-3 py-2 font-mono text-xs backdrop-blur-sm" aria-live="polite">
           {(() => {

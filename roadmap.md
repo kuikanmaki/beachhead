@@ -1,6 +1,6 @@
 # Current update
 
-- [ ] Shorten Level 2 briefing to new objective and essential squad/wall actions; verify transition and landing.
+- [x] Shorten Level 2 briefing to new objective and essential squad/wall actions; verify transition and landing.
 - [x] Share infantry movement with engineers and engineer teams, including construction travel; verify rock detours and unreachable destinations.
 - [x] Refine the arcade opening: game name first, plain-language goal, minimal reading; verify play and optional help.
 - [x] Simplify the opening and Level 1 briefing; verify starting, landing, and optional help.
