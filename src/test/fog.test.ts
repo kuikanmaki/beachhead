@@ -3,6 +3,17 @@ import { FogOfWar } from "@/game/fog";
 import { Game, GROUND, HIGH, setMapSize } from "@/game/engine";
 
 describe("fog of war", () => {
+  it("keeps the full map visible by default before landing and after troop movement", () => {
+    setMapSize(2);
+    const game = new Game(6);
+    expect(game.fog.stateAt(0, 0)).toBe(2);
+    expect(game.fog.stateAt(63, 31)).toBe(2);
+    game.map.fill(GROUND);
+    game.land(16, 16);
+    game.updateFog();
+    expect(game.fog.stateAt(63, 31)).toBe(2);
+    expect(game.placeTower(60, 28)).toBe(true);
+  });
   it("starts completely unexplored and reveals around ground troops", () => {
     const fog = new FogOfWar(12, 12);
     expect(fog.stateAt(6, 6, false)).toBe(0);

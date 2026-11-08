@@ -47,8 +47,8 @@ export class FogOfWar {
     }
   }
 
-  stateAt(x: number, y: number, satellite: boolean): FogState {
-    if (satellite) return 2;
+  stateAt(x: number, y: number, fullMap = true): FogState {
+    if (fullMap) return 2;
     const sx = Math.floor(x * SAMPLES_PER_TILE), sy = Math.floor(y * SAMPLES_PER_TILE);
     if (sx < 0 || sy < 0 || sx >= this.width || sy >= this.height) return 0;
     const i = sy * this.width + sx;
