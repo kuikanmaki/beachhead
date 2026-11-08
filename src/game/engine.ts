@@ -412,7 +412,7 @@ export class Game {
     for (let i = 1; i < spans.length; i++) {
       const previous = reachable[i - 1], span = spans[i];
       const low = Math.max(span.start, previous.low + epsilon);
-      const high = Math.min(i === spans.length - 1 ? length : span.end, previous.high + 1);
+      const high = Math.min(i === spans.length - 1 ? length : span.end, previous.high + maxGap);
       if (low > high + epsilon) { possible = false; break; }
       reachable.push({ low, high });
     }
