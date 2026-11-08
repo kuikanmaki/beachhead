@@ -1,6 +1,6 @@
 # Current update
 
-- [ ] Remove Satellite Comms controls and keep map, contacts, and placement permanently visible.
+- [x] Remove Satellite Comms controls and keep map, contacts, and placement permanently visible.
 - [x] Cancel unfinished towers and wall projects on assigned engineer death; verify replacement engineers cannot resume them.
 - [x] Allow cruiser landings over ships and installations; remove covered structures and verify preservation outside the footprint.
 - [x] Make Level 2 opening attacks require forward-deployed squads to protect wall builders.
