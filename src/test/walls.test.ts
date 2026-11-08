@@ -106,7 +106,8 @@ describe("Level 2 engineer teams and walls", () => {
     const wallCount = game.walls.length;
     const jobCount = game.wallJobs.length;
     const plan = game.wallPlan(9.5, 10.5, 11.5, 10.5);
-    expect(plan.blocked).toBe(2);
+    expect(plan.blocked).toBe(1);
+    expect(plan.siteStatus).toEqual(["buildable", "blocked", "connector"]);
     expect(plan.valid).toBe(false);
     expect(game.buildWall(9.5, 10.5, 11.5, 10.5)).toBe(false);
     expect(game.walls).toHaveLength(wallCount);
