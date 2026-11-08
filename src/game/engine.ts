@@ -199,7 +199,7 @@ export class Game {
   canLandCruiser(tx: number, ty: number) {
     if (tx - CRUISER_RADIUS < 0 || ty - CRUISER_RADIUS < 0 || tx + CRUISER_RADIUS >= W || ty + CRUISER_RADIUS >= H) return false;
     for (let y = ty - CRUISER_RADIUS; y <= ty + CRUISER_RADIUS; y++) for (let x = tx - CRUISER_RADIUS; x <= tx + CRUISER_RADIUS; x++) {
-      if (this.at(x, y) === ROCK || this.towers.some((t) => t.tx === x && t.ty === y)) return false;
+      if (this.at(x, y) === ROCK || this.towers.some((t) => t.tx === x && t.ty === y) || this.wallAt(x, y)) return false;
     }
     return true;
   }
