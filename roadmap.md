@@ -1,6 +1,6 @@
 # Current update
 
-- [ ] Declutter the right-side overlay; retain essential status and move detailed guidance into pausing level briefings and a field manual.
+- [x] Declutter the right-side overlay; retain essential status and move detailed guidance into pausing level briefings and a field manual.
 - [x] Remove Satellite Comms controls and keep map, contacts, and placement permanently visible.
 - [x] Cancel unfinished towers and wall projects on assigned engineer death; verify replacement engineers cannot resume them.
 - [x] Allow cruiser landings over ships and installations; remove covered structures and verify preservation outside the footprint.
