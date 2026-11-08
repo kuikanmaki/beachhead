@@ -437,8 +437,8 @@ export class Game {
     if (p) { this.selected = p.id; return; }
     const engineer = this.engineers.find((e) => Math.hypot(e.x - x, e.y - y) < 0.9);
     if (engineer) { this.selected = engineer.id; return; }
-    // Left-clicking empty ground is always a safe way to clear selection; movement uses right-click.
-    this.unselect();
+    const selectedInfantry = this.infantry.find((unit) => unit.id === this.selected);
+    if (selectedInfantry) this.commandInfantry(selectedInfantry, x, y);
   }
 
   // ---------- simulation ----------

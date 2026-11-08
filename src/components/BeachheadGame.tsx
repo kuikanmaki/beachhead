@@ -125,7 +125,10 @@ export function BeachheadGame() {
         setTick((t) => t + 1);
         return;
       }
-      if (dragRef.current?.moved) setDragging(false);
+      if (dragRef.current?.moved) {
+        setDragging(false);
+        suppressClickRef.current = true;
+      }
       dragRef.current = null;
     };
     window.addEventListener("pointermove", onPointerMove);
@@ -162,12 +165,10 @@ export function BeachheadGame() {
   };
   const onContext = (e: React.MouseEvent) => {
     e.preventDefault();
-    const g = gameRef.current, p = toWorld(e);
-    if (!g) return;
     wallDragRef.current = null; updateWallDraft(null);
-    if (modeRef.current !== "select") return setMode("select");
-    const sel = g.infantry.find((x) => x.id === g.selected);
-    if (sel) g.commandInfantry(sel, p.x, p.y);
+    setMode("select");
+    gameRef.current?.unselect();
+    setTick((t) => t + 1);
   };
   const restart = () => { gameRef.current = freshGame(); setMode("select"); wallDragRef.current = null; updateWallDraft(null); resetView(); };
   const continueMission = () => { if (gameRef.current?.continueToCruiser()) setMode("select"); };
@@ -309,7 +310,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
           )}
         </div>
         <div className="hud-panel mt-auto bg-card/75 text-xs leading-relaxed text-muted-foreground backdrop-blur-sm">
-          <p>Click a unit to select; right-click to move infantry. Click empty ground or press Esc to unselect.</p>
+          <p>Click a unit to select; left-click ground to move a team or squad. Right-click or press Esc to unselect.</p>
           <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
           <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
           {g.hasCruiser && <p className="mt-1 text-primary">Choose [4] Build Wall, then drag a line. Engineer teams build from your starting point to the end; each segment costs {COST.wall} credits.</p>}
