@@ -424,8 +424,9 @@ export class Game {
 
   // ---------- simulation ----------
   spawnBug(kind?: 0 | 1 | 2) {
-    if (!this.spawns.length) return;
-    const s = this.spawns[Math.floor(this.rand() * this.spawns.length)];
+    const available = this.spawns.filter((s) => !this.isEnemyBlocked(s % W, (s / W) | 0));
+    if (!available.length) return;
+    const s = available[Math.floor(this.rand() * available.length)];
     const tankerChance = this.hasCruiser ? 0.14 : 0.08;
     const k = kind ?? (this.t > 150 && this.rand() < tankerChance ? 2 : this.rand() < 0.3 ? 1 : 0);
     const scale = 1 + this.t / 300 + (this.level - 1) * 0.35;
