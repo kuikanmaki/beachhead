@@ -569,6 +569,19 @@ export class Game {
     }
     this.infantry = this.infantry.filter((p) => p.soldiers > 0);
 
+    // Cancel a fallen builder's unfinished work before anyone can take it over.
+    const fallenEngineers = this.engineers.filter((e) => e.members <= 0 || e.hp <= 0);
+    if (fallenEngineers.length) {
+      const fallenIds = new Set(fallenEngineers.map((e) => e.id));
+      const towerIds = new Set(fallenEngineers.map((e) => e.job).filter((id) => id !== null));
+      const wallJobIds = new Set(this.wallJobs.filter((job) => fallenIds.has(job.engineerId)).map((job) => job.id));
+      this.towers = this.towers.filter((tower) => tower.built >= 1 || !towerIds.has(tower.id));
+      this.walls = this.walls.filter((wall) => wall.built >= 1 || !wallJobIds.has(wall.jobId));
+      this.wallJobs = this.wallJobs.filter((job) => !wallJobIds.has(job.id));
+      for (const e of fallenEngineers) this.splats.push({ x: e.x, y: e.y, life: 30, r: 0.3, green: false });
+      this.engineers = this.engineers.filter((e) => !fallenIds.has(e.id));
+    }
+
     // Engineer teams prioritize queued wall lines, then return to automatic tower construction.
     for (const job of this.wallJobs) {
       if (!this.nextWallSegment(job)) continue;
@@ -608,10 +621,6 @@ export class Game {
       }
       else if (job) job.built = Math.min(1, job.built + dt / 6);
     }
-    this.engineers = this.engineers.filter((e) => {
-      if (e.members <= 0 || e.hp <= 0) this.splats.push({ x: e.x, y: e.y, life: 30, r: 0.3, green: false });
-      return e.members > 0 && e.hp > 0;
-    });
     if (this.selected && !this.infantry.some((p) => p.id === this.selected) && !this.engineers.some((e) => e.id === this.selected)) this.unselect();
 
     // towers

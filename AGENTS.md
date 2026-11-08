@@ -11,3 +11,4 @@
 
 - Keep map-camera coordinate conversion and zoom constraints in `src/game/camera.ts`; rendering and pointer commands must share them so zoomed input stays aligned.
 - Keep fog-of-war exploration state in `src/game/fog.ts`; the engine updates it from troop positions so rendering and commands share the same visibility rules.
+- Process engineer deaths and construction cancellation before assigning or advancing construction in the simulation; dead builders must never finish work or hand cancelled projects to replacements.
