@@ -407,7 +407,7 @@ export class Game {
   placeTower(tx: number, ty: number) {
     if (this.phase !== "playing") return false;
     if (this.at(tx, ty) === ROCK) return (this.message = "Can't build on rock."), false;
-    if (this.towers.some((t) => t.tx === tx && t.ty === ty) || (Math.floor(this.core.x) === tx && Math.floor(this.core.y) === ty))
+    if (this.towers.some((t) => t.tx === tx && t.ty === ty) || this.wallAt(tx, ty) || (Math.floor(this.core.x) === tx && Math.floor(this.core.y) === ty))
       return (this.message = "Tile occupied."), false;
     if (this.credits < COST.tower) return (this.message = "Not enough credits for a tower."), false;
     if (!this.engineers.length) return (this.message = "You need an engineer to build towers."), false;
