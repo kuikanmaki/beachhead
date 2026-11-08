@@ -1,9 +1,8 @@
 # Current update
 
-- [ ] Start Level 2 with no enemies and only a brief setup window.
-- [ ] Escalate scouts and hordes so troops face real pressure.
-- [ ] Verify skilled wall-building remains achievable and add pacing tests.
-- [ ] Playtest the Level 2 transition and combat in the live preview.
-- [ ] Add intuitive unselect for every unit type.
-- [ ] Auto-select newly deployed movable units and deselect previous selections.
-- [ ] Test selection behavior in the live preview.
+- [x] Start Level 2 with no enemies and a 12-second setup window.
+- [x] Send early scouts and the first horde at 25 seconds, then escalate attacks.
+- [x] Verify defended walls remain achievable with casualties and undefended cruisers fall.
+- [x] Add intuitive unselect for teams, squads, engineers, and engineer teams.
+- [x] Auto-select every newly deployed movable unit and replace previous selections.
+- [x] Pass all 42 tests; verify selection controls and the Level 2 transition in the live preview.
