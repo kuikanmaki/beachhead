@@ -316,13 +316,94 @@ export class Game {
     return true;
   }
   trainEngineer() {
+    return this.hasCruiser ? this.trainEngineerTeam() : this.deployEngineer("engineer");
+  }
+  trainEngineerTeam() {
+    if (!this.hasCruiser) return (this.message = "Engineer teams require the Level 2 command cruiser."), false;
+    return this.deployEngineer("team");
+  }
+  private deployEngineer(kind: Engineer["kind"]) {
     if (this.phase !== "playing") return false;
-    if (this.credits < COST.engineer) return (this.message = "Not enough credits for an engineer."), false;
-    this.credits -= COST.engineer;
-    this.engineers.push({ id: this.nid++, x: this.core.x, y: this.core.y, hp: 40, job: null });
-    this.message = this.hasCruiser ? "Engineer deployed from the cruiser." : "Engineer ready.";
+    const cost = kind === "team" ? COST.engineerTeam : COST.engineer;
+    if (this.credits < cost) return (this.message = `Not enough credits for an ${kind === "team" ? "engineer team" : "engineer"}.`), false;
+    this.credits -= cost;
+    this.engineers.push(this.newEngineer(kind));
+    this.message = kind === "team" ? "Four-person engineer team deployed from the cruiser." : "Engineer ready.";
     return true;
   }
+
+  /** A four-connected raster line prevents diagonal gaps in a defensive perimeter. */
+  wallLine(x1: number, y1: number, x2: number, y2: number) {
+    let x = Math.floor(x1), y = Math.floor(y1);
+    const endX = Math.floor(x2), endY = Math.floor(y2);
+    const dx = Math.abs(endX - x), sx = Math.sign(endX - x);
+    const dy = -Math.abs(endY - y), sy = Math.sign(endY - y);
+    let err = dx + dy;
+    const tiles: { tx: number; ty: number }[] = [{ tx: x, ty: y }];
+    while (x !== endX || y !== endY) {
+      const e2 = 2 * err, moveX = e2 >= dy, moveY = e2 <= dx;
+      if (moveX && moveY && sx && sy) tiles.push({ tx: x + sx, ty: y });
+      if (moveX) { err += dy; x += sx; }
+      if (moveY) { err += dx; y += sy; }
+      const last = tiles[tiles.length - 1];
+      if (!last || last.tx !== x || last.ty !== y) tiles.push({ tx: x, ty: y });
+    }
+    return tiles;
+  }
+
+  canBuildWallAt(tx: number, ty: number) {
+    return tx >= 0 && ty >= 0 && tx < W && ty < H && this.at(tx, ty) !== ROCK && !this.wallAt(tx, ty)
+      && !this.towers.some((t) => t.tx === tx && t.ty === ty)
+      && !(Math.floor(this.core.x) === tx && Math.floor(this.core.y) === ty);
+  }
+
+  wallPlan(x1: number, y1: number, x2: number, y2: number) {
+    const tiles = this.wallLine(x1, y1, x2, y2);
+    const buildable = tiles.filter(({ tx, ty }) => this.canBuildWallAt(tx, ty));
+    return { tiles, buildable, blocked: tiles.length - buildable.length };
+  }
+
+  nextWallSegment(job: WallJob) {
+    for (const id of job.wallIds) {
+      const segment = this.walls.find((w) => w.id === id);
+      if (segment && segment.built < 1) return segment;
+    }
+    return undefined;
+  }
+
+  activeWallJob(engineerId: number) {
+    return this.wallJobs.find((job) => job.engineerId === engineerId && this.nextWallSegment(job));
+  }
+
+  assignWallJob(job: WallJob) {
+    const first = this.nextWallSegment(job);
+    const teams = this.engineers.filter((e) => e.kind === "team" && e.members > 0);
+    if (!first || !teams.length) return false;
+    teams.sort((a, b) => {
+      const queueA = this.wallJobs.filter((j) => j.engineerId === a.id && this.nextWallSegment(j)).length;
+      const queueB = this.wallJobs.filter((j) => j.engineerId === b.id && this.nextWallSegment(j)).length;
+      return queueA - queueB || Math.hypot(a.x - first.tx, a.y - first.ty) - Math.hypot(b.x - first.tx, b.y - first.ty);
+    });
+    job.engineerId = teams[0].id;
+    return true;
+  }
+
+  buildWall(x1: number, y1: number, x2: number, y2: number) {
+    if (this.phase !== "playing" || !this.hasCruiser) return (this.message = "Walls unlock with the Level 2 engineer teams."), false;
+    if (!this.engineers.some((e) => e.kind === "team" && e.members > 0)) return (this.message = "Deploy an engineer team before marking a wall."), false;
+    const plan = this.wallPlan(x1, y1, x2, y2);
+    if (!plan.buildable.length) return (this.message = "No clear wall sites along that line. Rock and existing structures are skipped."), false;
+    const jobId = this.nid++;
+    const job: WallJob = { id: jobId, engineerId: null, wallIds: [] };
+    for (const { tx, ty } of plan.buildable) {
+      const segment: WallSegment = { id: this.nid++, jobId, tx, ty, built: 0, paid: false };
+      this.walls.push(segment); job.wallIds.push(segment.id);
+    }
+    this.wallJobs.push(job); this.assignWallJob(job);
+    this.message = `Wall marked: ${plan.buildable.length} segments, built in drag order for ${COST.wall} credits each.`;
+    return true;
+  }
+
   placeTower(tx: number, ty: number) {
     if (this.phase !== "playing") return false;
     if (this.at(tx, ty) === ROCK) return (this.message = "Can't build on rock."), false;
