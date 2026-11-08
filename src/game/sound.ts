@@ -99,7 +99,10 @@ export function audioTick(g: Game, dt: number) {
     weldCd = 0.28;
     for (const e of g.engineers) {
       const job = g.towers.find((t) => t.id === e.job && t.built < 1);
-      if (job && Math.hypot(job.tx + 0.5 - e.x, job.ty + 1.2 - e.y) < 0.2) play(g, Math.random() < 0.5 ? "weld" : "clank", e.x, e.y, 0.5);
+      const wallJob = g.activeWallJob(e.id), wall = wallJob ? g.nextWallSegment(wallJob) : undefined;
+      const buildingTower = job && Math.hypot(job.tx + 0.5 - e.x, job.ty + 1.2 - e.y) < 0.2;
+      const buildingWall = wall && wall.paid && Math.hypot(wall.tx + 0.5 - e.x, wall.ty + 0.5 - e.y) < 0.2;
+      if (buildingTower || buildingWall) play(g, Math.random() < 0.5 ? "weld" : "clank", e.x, e.y, 0.5);
     }
   }
   lastT += dt;
