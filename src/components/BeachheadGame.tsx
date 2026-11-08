@@ -320,6 +320,13 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
         </div>
       </aside>
 
+      {selectedName && (
+        <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-sm border border-primary/50 bg-card/90 px-3 py-1.5 font-mono text-xs backdrop-blur-sm" aria-live="polite">
+          <span>Selected: <strong className="text-primary">{selectedName}</strong></span>
+          <button className="hud-btn px-2 py-1" onClick={() => g.unselect()} aria-label="Unselect unit">Unselect [Esc]</button>
+        </div>
+      )}
+
       <div className="absolute bottom-4 left-4 flex items-center gap-1 rounded-sm border border-border bg-card/80 p-1 font-mono text-xs backdrop-blur-sm" aria-label="Map zoom controls">
         <button className="hud-btn justify-center px-3 py-1" onClick={() => applyZoom(zoom / 1.25)} disabled={zoom <= 1} aria-label="Zoom out">−</button>
         <output className="w-12 text-center" aria-live="polite">{Math.round(zoom * 100)}%</output>
