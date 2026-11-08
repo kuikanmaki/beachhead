@@ -1,5 +1,5 @@
 // @ts-nocheck -- hot-loop typed-array/grid indexing; strict indexed-access checks are disabled for this file only.
-// Klendathu Beachhead — pure game simulation + canvas renderer (no React).
+// Beachhead — pure game simulation + canvas renderer (no React).
 import { FogOfWar } from "./fog";
 
 export const T = 20;

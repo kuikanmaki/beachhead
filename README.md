@@ -1,6 +1,6 @@
 # Beachhead
 
-Build a top-down 2D browser tower defense game, where the Player is a commander holding a Klendathu-style beachhead against hostile arachnid swarms (classic TD + They Are Billions horde pressure + Starship Troopers expendable infantry).
+Build a top-down 2D browser tower defense game, where the Player is a commander holding a desert beachhead against hostile arachnid swarms (classic TD + They Are Billions horde pressure + Starship Troopers expendable infantry).
 
 Game starts by Player landing his first Infantry platoon on the auto-generated map / surface. This causes the arachnid swarms to begin to attack (they spawn from the edges and path toward the landing zone core). The map includes ridges, narrow passes, and high-ground positions, where player can station the infantry on chokepoints and elevated spots to hold the swarm. Infantry platoons auto-fight in the positions but die fast (sacrificial delay tools). While the infantry units fight, player uses engineering units to build strategically positioned automated machine-gun towers (permanent defense). Game is lost if all units are lost. Game is won when no infantry has died for a sustained period (defenses alone are holding due to the building of permanent defenses).
 

@@ -166,7 +166,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
       {/* top bar */}
       <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-background/85 to-transparent px-5 pb-8 pt-3">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary">Mobile Infantry // Operation Klendathu</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary">Mobile Infantry // Operation Beachhead</p>
           <h1 className="font-display text-3xl uppercase leading-none tracking-wide">Beachhead</h1>
         </div>
         <p className="mt-2 max-w-md text-center font-mono text-sm text-foreground/90">{g.message}</p>
