@@ -405,7 +405,14 @@ export class Game {
   wallPlan(x1: number, y1: number, x2: number, y2: number) {
     const tiles = this.wallLine(x1, y1, x2, y2);
     const buildable = tiles.filter(({ tx, ty }) => this.canBuildWallAt(tx, ty));
-    return { tiles, buildable, blocked: tiles.length - buildable.length };
+    const continuous = tiles.every((tile, i) => {
+      if (!i) return true;
+      const previous = tiles[i - 1];
+      const tileSteps = Math.max(Math.abs(tile.tx - previous.tx), Math.abs(tile.ty - previous.ty));
+      return tileSteps === 1 && Math.hypot(tile.x - previous.x, tile.y - previous.y) <= 1.000001;
+    });
+    const blocked = tiles.length - buildable.length;
+    return { tiles, buildable, blocked, continuous, valid: blocked === 0 && continuous };
   }
 
   nextWallSegment(job: WallJob) {
