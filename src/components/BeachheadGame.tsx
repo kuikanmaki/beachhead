@@ -342,8 +342,8 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
       )}
       {g.phase === "shipLanding" && (
         <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded-sm border border-primary/40 bg-background/85 px-4 py-2 text-center font-mono text-sm text-primary">
-          Level 2 · Click a clear 7×7 sector to land the command cruiser
-          <span className="mt-1 block text-xs text-muted-foreground">Survivors and defenses carry over · seal the cruiser to secure the landing zone</span>
+          Level 2 · Click a rock-free 7×7 sector to land the command cruiser
+          <span className="mt-1 block text-xs text-muted-foreground">Installations beneath the ship are removed · survivors and other defenses carry over</span>
         </div>
       )}
       {(g.phase === "won" || g.phase === "lost") && (

@@ -1,5 +1,6 @@
 # Current update
 
+- [x] Allow cruiser landings over ships and installations; remove covered structures and verify preservation outside the footprint.
 - [x] Make Level 2 opening attacks require forward-deployed squads to protect wall builders.
 - [x] Verify unprotected construction fails while a good forward defense can win with sacrifices.
 - [x] Align every wall segment with the drawn line and keep all centers on that straight line.
