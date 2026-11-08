@@ -422,7 +422,7 @@ function drawFog(g: Game, c: CanvasRenderingContext2D, satellite: boolean) {
 }
 
 // ---------- main ----------
-export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string, camera: Camera, satellite: boolean) {
+export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string, camera: Camera, satellite: boolean, wallDraft: { x1: number; y1: number; x2: number; y2: number } | null = null) {
   const now = performance.now() / 1000, dt = Math.min(0.1, now - (lastNow || now)); lastNow = now;
   if (!g.bg) g.bg = buildTerrain(g);
   sizeUp();
