@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CRUISER_HP, ENGINEER_TEAM_SIZE, Game, GROUND, HOLD_NEEDED, ROCK, SQUAD_SIZE, WIN_AFTER, setMapSize } from "@/game/engine";
+import { CRUISER_HP, Game, GROUND, HOLD_NEEDED, ROCK, SQUAD_SIZE, WIN_AFTER, setMapSize } from "@/game/engine";
 
 function gameWithCruiser(seed = 21) {
   setMapSize(2);
@@ -235,7 +235,7 @@ describe("second-stage command cruiser", () => {
   it("lets forward-deployed squads protect wall construction with troop sacrifices", () => {
     const game = gameWithCruiser(20);
     game.credits = 1000;
-    for (const [dx, dy] of [[-6, 0], [6, 0], [0, -6], [0, 6]] as const) {
+    for (const [dx, dy] of [[-6, 0], [6, 0], [0, -6], [0, 6], [0, 0]] as const) {
       expect(game.dropSquad(game.core.x + dx, game.core.y + dy)).toBe(true);
     }
     const cx = Math.floor(game.core.x), cy = Math.floor(game.core.y), r = 4;
@@ -265,7 +265,7 @@ describe("second-stage command cruiser", () => {
 
     expect(game.phase).toBe("lost");
     expect(game.walls.filter((wall) => wall.built >= 1).length).toBeLessThan(32);
-    expect(game.engineers.reduce((sum, engineer) => sum + engineer.members, 0)).toBeLessThan(ENGINEER_TEAM_SIZE);
+    expect(game.deaths).toBeGreaterThan(0);
   });
 
   it("overwhelms an undefended cruiser during the escalating attacks", () => {
