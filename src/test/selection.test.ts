@@ -60,8 +60,19 @@ describe("unit selection", () => {
     expect(game.selected).toBe(engineerTeam.id);
   });
 
-  it("selects engineers by clicking and unselects on empty ground or explicit unselect", () => {
+  it("moves the selected team with a ground click and keeps it selected", () => {
     const game = landedGame(93);
+    const team = game.infantry[0]!;
+    game.click(20.5, 18.5);
+
+    expect(game.selected).toBe(team.id);
+    expect(team.tx).toBe(20.5);
+    expect(team.ty).toBe(18.5);
+    expect(team.path.at(-1)).toEqual({ x: 20.5, y: 18.5 });
+  });
+
+  it("selects engineers by clicking and unselects only through an explicit command", () => {
+    const game = landedGame(94);
     const engineer = game.engineers[0]!;
     game.unselect();
     expect(game.selected).toBeNull();
@@ -69,7 +80,7 @@ describe("unit selection", () => {
     game.click(engineer.x, engineer.y);
     expect(game.selected).toBe(engineer.id);
     game.click(2.5, 2.5);
-    expect(game.selected).toBeNull();
+    expect(game.selected).toBe(engineer.id);
 
     const team = game.infantry[0]!;
     game.click(team.x, team.y);
