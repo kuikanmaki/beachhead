@@ -73,7 +73,12 @@ export function BeachheadGame() {
         if (g?.hasCruiser && g.phase === "playing") setMode("wall");
         else if (g) g.message = "Build Wall unlocks with Level 2 engineer teams.";
       }
-      if (e.key === "Escape") { setMode("select"); wallDragRef.current = null; updateWallDraft(null); }
+      if (e.key === "Escape") {
+        setMode("select");
+        gameRef.current?.unselect();
+        wallDragRef.current = null;
+        updateWallDraft(null);
+      }
       if (e.key === "0") { cameraRef.current = resetCamera(); setZoom(1); }
       if (e.key === "m" || e.key === "M") toggleMute();
     };
@@ -217,6 +222,9 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
   const teamCount = g.infantry.filter((p) => p.kind === "team").length;
   const squadCount = g.infantry.filter((p) => p.kind === "squad").length;
   const completedWalls = g.walls.filter((w) => w.built >= 1).length;
+  const selectedInfantry = g.infantry.find((unit) => unit.id === g.selected);
+  const selectedEngineer = g.engineers.find((unit) => unit.id === g.selected);
+  const selectedName = selectedInfantry?.kind === "squad" ? "Squad" : selectedInfantry ? "Team" : selectedEngineer?.kind === "team" ? "Engineer Team" : selectedEngineer ? "Engineer" : null;
   return (
     <>
       {/* top bar */}
@@ -301,7 +309,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
           )}
         </div>
         <div className="hud-panel mt-auto bg-card/75 text-xs leading-relaxed text-muted-foreground backdrop-blur-sm">
-          <p>Click a team or squad to select, then click/right-click to move it.</p>
+          <p>Click a unit to select; right-click to move infantry. Click empty ground or press Esc to unselect.</p>
           <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
           <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
           {g.hasCruiser && <p className="mt-1 text-primary">Choose [4] Build Wall, then drag a line. Engineer teams build from your starting point to the end; each segment costs {COST.wall} credits.</p>}

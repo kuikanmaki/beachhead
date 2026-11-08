@@ -158,7 +158,9 @@ export class Game {
     this.updateSpawnPoints(tx, ty);
     this.bg = null;
     this.phase = "playing";
-    this.infantry.push(this.newInfantry(this.core.x, this.core.y + 1.5));
+    const infantry = this.newInfantry(this.core.x, this.core.y + 1.5);
+    this.infantry.push(infantry);
+    this.selected = infantry.id;
     const engineer = this.newEngineer("engineer");
     engineer.x = this.core.x - 1;
     this.engineers.push(engineer);
@@ -338,7 +340,9 @@ export class Game {
     const cost = kind === "team" ? COST.engineerTeam : COST.engineer;
     if (this.credits < cost) return (this.message = `Not enough credits for an ${kind === "team" ? "engineer team" : "engineer"}.`), false;
     this.credits -= cost;
-    this.engineers.push(this.newEngineer(kind));
+    const engineer = this.newEngineer(kind);
+    this.engineers.push(engineer);
+    this.selected = engineer.id;
     this.message = kind === "team" ? "Four-person engineer team deployed from the cruiser." : "Engineer ready.";
     return true;
   }
@@ -426,11 +430,15 @@ export class Game {
     this.towers.push({ id: this.nid++, tx, ty, built: 0, hp: 300, cd: 0 });
     this.message = "Tower site marked. Engineers en route."; return true;
   }
+  unselect() { this.selected = null; }
+
   click(x: number, y: number) {
     const p = this.infantry.find((p) => Math.hypot(p.x - x, p.y - y) < (p.kind === "squad" ? 1.5 : 0.9));
     if (p) { this.selected = p.id; return; }
-    const sel = this.infantry.find((p) => p.id === this.selected);
-    if (sel) this.commandInfantry(sel, x, y);
+    const engineer = this.engineers.find((e) => Math.hypot(e.x - x, e.y - y) < 0.9);
+    if (engineer) { this.selected = engineer.id; return; }
+    // Left-clicking empty ground is always a safe way to clear selection; movement uses right-click.
+    this.unselect();
   }
 
   // ---------- simulation ----------
@@ -543,7 +551,6 @@ export class Game {
       }
     }
     this.infantry = this.infantry.filter((p) => p.soldiers > 0);
-    if (this.selected && !this.infantry.some((p) => p.id === this.selected)) this.selected = null;
 
     // Engineer teams prioritize queued wall lines, then return to automatic tower construction.
     for (const job of this.wallJobs) {
@@ -588,6 +595,7 @@ export class Game {
       if (e.members <= 0 || e.hp <= 0) this.splats.push({ x: e.x, y: e.y, life: 30, r: 0.3, green: false });
       return e.members > 0 && e.hp > 0;
     });
+    if (this.selected && !this.infantry.some((p) => p.id === this.selected) && !this.engineers.some((e) => e.id === this.selected)) this.unselect();
 
     // towers
     for (const t of this.towers) {
