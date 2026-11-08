@@ -496,12 +496,12 @@ export class Game {
     if (!plan.valid) return (this.message = "Wall not started: redraw a continuous line with no red blocked segments."), false;
     const jobId = this.nid++;
     const job: WallJob = { id: jobId, engineerId: null, wallIds: [] };
-    for (const { tx, ty, x, y, angle } of plan.tiles) {
+    for (const { tx, ty, x, y, angle } of plan.buildable) {
       const segment: WallSegment = { id: this.nid++, jobId, tx, ty, x, y, angle, built: 0, paid: false };
       this.walls.push(segment); job.wallIds.push(segment.id);
     }
     this.wallJobs.push(job); this.assignWallJob(job);
-    this.message = `Wall marked: ${plan.tiles.length} connected segments, built in drag order for ${COST.wall} credits each.`;
+    this.message = `Wall marked: ${plan.buildable.length} connected segments, built in drag order for ${COST.wall} credits each.`;
     return true;
   }
 
