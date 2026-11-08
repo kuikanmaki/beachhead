@@ -565,8 +565,8 @@ export class Game {
         any.sort((a, b) => Math.hypot(a.tx - e.x, a.ty - e.y) - Math.hypot(b.tx - e.x, b.ty - e.y));
         job = any[0]; if (job) e.job = job.id;
       }
-      const gx = segment ? segment.tx + 0.5 : job ? job.tx + 0.5 : this.core.x - 1;
-      const gy = segment ? segment.ty + 0.5 : job ? job.ty + 1.2 : this.core.y + 0.8;
+      const gx = segment ? segment.x : job ? job.tx + 0.5 : this.core.x - 1;
+      const gy = segment ? segment.y : job ? job.ty + 1.2 : this.core.y + 0.8;
       const dx = gx - e.x, dy = gy - e.y, d = Math.hypot(dx, dy);
       if (d > 0.15) { e.x += (dx / d) * Math.min(d, 2.6 * dt); e.y += (dy / d) * Math.min(d, 2.6 * dt); }
       else if (segment) {
