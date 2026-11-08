@@ -492,9 +492,10 @@ export class Game {
       }
       const l = Math.hypot(mx, my) || 1;
       const sp = b.speed * (this.at(Math.floor(b.x), Math.floor(b.y)) === HIGH ? 0.55 : 1);
+      const oldX = b.x, oldY = b.y;
       b.x += (mx / l) * sp * dt + (this.rand() - 0.5) * 0.04;
       b.y += (my / l) * sp * dt + (this.rand() - 0.5) * 0.04;
-      if (this.at(Math.floor(b.x), Math.floor(b.y)) === ROCK) { b.x -= (mx / l) * sp * dt; b.y -= (my / l) * sp * dt; }
+      if (this.isEnemyBlocked(Math.floor(b.x), Math.floor(b.y))) { b.x = oldX; b.y = oldY; }
     }
 
     const nearestBug = (x: number, y: number, range: number) => {
