@@ -1,5 +1,6 @@
 # Current update
 
+- [x] Share infantry movement with engineers and engineer teams, including construction travel; verify rock detours and unreachable destinations.
 - [x] Refine the arcade opening: game name first, plain-language goal, minimal reading; verify play and optional help.
 - [x] Simplify the opening and Level 1 briefing; verify starting, landing, and optional help.
 - [x] Declutter the right-side overlay; retain essential status and move detailed guidance into pausing level briefings and a field manual.
