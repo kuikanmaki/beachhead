@@ -69,6 +69,11 @@ export class Game {
   infantry: Infantry[] = [];
   engineers: Engineer[] = [];
   towers: Tower[] = [];
+  walls: WallSegment[] = [];
+  wallJobs: WallJob[] = [];
+  wallGrid = new Uint8Array(W * H);
+  perimeter: PerimeterStatus = { sealed: false, enemiesInside: 0 };
+  lastWallCreditWarning = -Infinity;
   tracers: Tracer[] = [];
   splats: Splat[] = [];
   spawns: number[] = [];
