@@ -16,8 +16,8 @@ export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
 export const CRUISER_RADIUS = 3; // clear 7×7-tile landing footprint
 export const CRUISER_HP = 1400;
-export const LEVEL_TWO_GRACE = 12;
-export const LEVEL_TWO_FIRST_HORDE = 25;
+export const LEVEL_TWO_GRACE = 6;
+export const LEVEL_TWO_FIRST_HORDE = 18;
 
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
 export type InfantryKind = "team" | "squad";
