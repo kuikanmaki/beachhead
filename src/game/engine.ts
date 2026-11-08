@@ -20,8 +20,11 @@ export const CRUISER_HP = 1400;
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
 export type InfantryKind = "team" | "squad";
 export type Infantry = { id: number; kind: InfantryKind; fireTeams: number; x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[]; soldiers: number; hp: number; cd: number };
-type Engineer = { id: number; x: number; y: number; hp: number; job: number | null };
+export type Engineer = { id: number; kind: "engineer" | "team"; members: number; x: number; y: number; hp: number; job: number | null };
 type Tower = { id: number; tx: number; ty: number; built: number; hp: number; cd: number };
+export type WallSegment = { id: number; jobId: number; tx: number; ty: number; built: number; paid: boolean };
+export type WallJob = { id: number; engineerId: number | null; wallIds: number[] };
+export type PerimeterStatus = { sealed: boolean; enemiesInside: number };
 type Tracer = { x1: number; y1: number; x2: number; y2: number; life: number; tower: boolean };
 type Splat = { x: number; y: number; life: number; r: number; green: boolean };
 
