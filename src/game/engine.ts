@@ -12,6 +12,8 @@ export const GROUND = 0, HIGH = 1, ROCK = 2;
 export const COST = { platoon: 60, engineer: 80, tower: 120 };
 export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
+export const CRUISER_RADIUS = 3; // clear 7×7-tile landing footprint
+export const CRUISER_HP = 1400;
 
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
 type Platoon = { id: number; x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[]; soldiers: number; hp: number; cd: number };
@@ -38,7 +40,9 @@ export class Game {
   dist = new Float32Array(W * H);
   fog = new FogOfWar(W, H);
   bg: HTMLCanvasElement | null = null;
-  phase: "landing" | "playing" | "won" | "lost" = "landing";
+  phase: "landing" | "shipLanding" | "playing" | "won" | "lost" = "landing";
+  level = 1;
+  hasCruiser = false;
   core = { x: 0, y: 0, hp: 600, max: 600 };
   bugs: Bug[] = [];
   platoons: Platoon[] = [];
@@ -108,11 +112,22 @@ export class Game {
   }
 
   land(tx: number, ty: number) {
-    if (this.at(tx, ty) === ROCK) return false;
+    if (this.phase !== "landing" || this.at(tx, ty) === ROCK) return false;
     for (let y = ty - 2; y <= ty + 2; y++) for (let x = tx - 2; x <= tx + 2; x++) if (this.at(x, y) !== ROCK || (x >= 0 && y >= 0 && x < W && y < H)) {
       if (x >= 0 && y >= 0 && x < W && y < H) this.map[y * W + x] = GROUND;
     }
     this.core.x = tx + 0.5; this.core.y = ty + 0.5;
+    this.updateSpawnPoints(tx, ty);
+    this.bg = null;
+    this.phase = "playing";
+    this.platoons.push(this.newPlatoon(this.core.x, this.core.y + 1.5));
+    this.engineers.push({ id: this.nid++, x: this.core.x - 1, y: this.core.y, hp: 40, job: null });
+    this.updateFog();
+    this.message = "Platoon down! The swarm is coming. Hold the line.";
+    return true;
+  }
+
+  updateSpawnPoints(tx: number, ty: number) {
     this.computeFlow();
     const edges = () => {
       const e: number[] = [];
@@ -132,12 +147,44 @@ export class Game {
       this.computeFlow(); e = edges();
     }
     this.spawns = e;
+  }
+
+  /** First-stage victory unlocks one paused placement step; the battlefield and survivors carry over. */
+  continueToCruiser() {
+    if (this.phase !== "won" || this.level !== 1) return false;
+    this.level = 2;
+    this.phase = "shipLanding";
+    this.selected = null;
+    this.message = "Level 2: choose a clear 7×7 sector for the command cruiser.";
+    return true;
+  }
+
+  canLandCruiser(tx: number, ty: number) {
+    if (tx - CRUISER_RADIUS < 0 || ty - CRUISER_RADIUS < 0 || tx + CRUISER_RADIUS >= W || ty + CRUISER_RADIUS >= H) return false;
+    for (let y = ty - CRUISER_RADIUS; y <= ty + CRUISER_RADIUS; y++) for (let x = tx - CRUISER_RADIUS; x <= tx + CRUISER_RADIUS; x++) {
+      if (this.at(x, y) === ROCK || this.towers.some((t) => t.tx === x && t.ty === y)) return false;
+    }
+    return true;
+  }
+
+  landCruiser(tx: number, ty: number) {
+    if (this.phase !== "shipLanding") return false;
+    if (!this.canLandCruiser(tx, ty)) {
+      this.message = "The cruiser needs a clear 7×7 sector without rock or towers.";
+      return false;
+    }
+    for (let y = ty - CRUISER_RADIUS; y <= ty + CRUISER_RADIUS; y++) for (let x = tx - CRUISER_RADIUS; x <= tx + CRUISER_RADIUS; x++) {
+      this.map[y * W + x] = GROUND;
+    }
+    this.core = { x: tx + 0.5, y: ty + 0.5, hp: CRUISER_HP, max: CRUISER_HP };
+    this.hasCruiser = true;
+    this.updateSpawnPoints(tx, ty);
     this.bg = null;
     this.phase = "playing";
-    this.platoons.push(this.newPlatoon(this.core.x, this.core.y + 1.5));
-    this.engineers.push({ id: this.nid++, x: this.core.x - 1, y: this.core.y, hp: 40, job: null });
+    this.nextHorde = this.t + 12;
+    this.fog.revealArea(this.core.x, this.core.y, 7);
     this.updateFog();
-    this.message = "Platoon down! The swarm is coming. Hold the line.";
+    this.message = "Cruiser down! All reinforcements now deploy from the ship. Endless hordes inbound.";
     return true;
   }
 
@@ -197,19 +244,26 @@ export class Game {
 
   // ---------- commands ----------
   dropPlatoon(x: number, y: number) {
+    if (this.phase !== "playing") return false;
     if (this.credits < COST.platoon) return (this.message = "Not enough credits for a platoon."), false;
     if (this.at(Math.floor(x), Math.floor(y)) === ROCK) return (this.message = "Infantry can't stand on sheer rock."), false;
+    const p = this.newPlatoon(x, y);
+    if (!p.path.length && Math.hypot(p.x - x, p.y - y) > 0.01) return false;
     this.credits -= COST.platoon;
-    const p = this.newPlatoon(x, y); this.platoons.push(p); this.selected = p.id;
-    this.message = "Fresh platoon dropping at the LZ."; return true;
+    this.platoons.push(p); this.selected = p.id;
+    this.message = this.hasCruiser ? "Platoon deployed from the cruiser to its rally point." : "Fresh platoon dropping at the LZ.";
+    return true;
   }
   trainEngineer() {
+    if (this.phase !== "playing") return false;
     if (this.credits < COST.engineer) return (this.message = "Not enough credits for an engineer."), false;
     this.credits -= COST.engineer;
     this.engineers.push({ id: this.nid++, x: this.core.x, y: this.core.y, hp: 40, job: null });
-    this.message = "Engineer ready."; return true;
+    this.message = this.hasCruiser ? "Engineer deployed from the cruiser." : "Engineer ready.";
+    return true;
   }
   placeTower(tx: number, ty: number) {
+    if (this.phase !== "playing") return false;
     if (this.at(tx, ty) === ROCK) return (this.message = "Can't build on rock."), false;
     if (this.towers.some((t) => t.tx === tx && t.ty === ty) || (Math.floor(this.core.x) === tx && Math.floor(this.core.y) === ty))
       return (this.message = "Tile occupied."), false;
@@ -230,14 +284,17 @@ export class Game {
   spawnBug(kind?: 0 | 1 | 2) {
     if (!this.spawns.length) return;
     const s = this.spawns[Math.floor(this.rand() * this.spawns.length)];
-    const k = kind ?? (this.t > 150 && this.rand() < 0.08 ? 2 : this.rand() < 0.3 ? 1 : 0);
-    const scale = 1 + this.t / 300;
+    const tankerChance = this.hasCruiser ? 0.14 : 0.08;
+    const k = kind ?? (this.t > 150 && this.rand() < tankerChance ? 2 : this.rand() < 0.3 ? 1 : 0);
+    const scale = 1 + this.t / 300 + (this.level - 1) * 0.35;
+    const damageScale = 1 + (this.level - 1) * 0.25;
+    const speedScale = 1 + (this.level - 1) * 0.08;
     const def = [
       { hp: 40, speed: 1.6, dmg: 14, r: 0.32, bounty: 3 },
       { hp: 18, speed: 3.0, dmg: 8, r: 0.24, bounty: 2 },
       { hp: 300, speed: 0.85, dmg: 45, r: 0.55, bounty: 15 },
     ][k];
-    this.bugs.push({ x: (s % W) + this.rand(), y: ((s / W) | 0) + this.rand(), hp: def.hp * scale, max: def.hp * scale, speed: def.speed, dmg: def.dmg, r: def.r, kind: k, bounty: def.bounty });
+    this.bugs.push({ x: (s % W) + this.rand(), y: ((s / W) | 0) + this.rand(), hp: def.hp * scale, max: def.hp * scale, speed: def.speed * speedScale, dmg: def.dmg * damageScale, r: def.r, kind: k, bounty: def.bounty });
   }
 
   killSoldier(p: Platoon) {
@@ -251,13 +308,13 @@ export class Game {
     this.credits += 4 * dt;
 
     // spawning
-    this.spawnAcc += dt * (0.35 + this.t / 120);
+    this.spawnAcc += dt * (0.35 + this.t / 120) * (this.hasCruiser ? 1.35 : 1);
     while (this.spawnAcc >= 1) { this.spawnAcc--; this.spawnBug(); }
     if (this.t >= this.nextHorde) {
       this.wave++;
-      const n = 14 + this.wave * 8;
+      const n = 14 + this.wave * 8 + (this.level - 1) * 12;
       for (let i = 0; i < n; i++) this.spawnBug(this.wave >= 3 && i % 12 === 0 ? 2 : undefined);
-      this.nextHorde += 45;
+      this.nextHorde += this.hasCruiser ? 40 : 45;
       this.message = `HORDE ${this.wave} INBOUND — ${n} bugs!`;
     }
 
@@ -371,9 +428,9 @@ export class Game {
     this.updateFog();
 
     // win / lose
-    if (this.core.hp <= 0) { this.phase = "lost"; this.message = "The LZ has been overrun."; }
+    if (this.core.hp <= 0) { this.phase = "lost"; this.message = this.hasCruiser ? "The command cruiser has been destroyed." : "The LZ has been overrun."; }
     else if (!this.platoons.length && !this.engineers.length) { this.phase = "lost"; this.message = "All units lost. The beachhead falls."; }
-    else if (this.t >= WIN_AFTER && this.t - this.lastDeath >= HOLD_NEEDED) { this.phase = "won"; this.message = "The defenses hold. Beachhead secured!"; }
+    else if (this.level === 1 && this.t >= WIN_AFTER && this.t - this.lastDeath >= HOLD_NEEDED) { this.phase = "won"; this.message = "The defenses hold. Beachhead secured!"; }
   }
 
   towerRangeAt(tx: number, ty: number) { return this.at(tx, ty) === HIGH ? 7 : 5.5; }
