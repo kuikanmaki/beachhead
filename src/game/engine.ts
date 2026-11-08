@@ -215,13 +215,16 @@ export class Game {
     }
     this.core = { x: tx + 0.5, y: ty + 0.5, hp: CRUISER_HP, max: CRUISER_HP };
     this.hasCruiser = true;
+    // Surviving engineers are reorganized into four-person teams for the construction objective.
+    for (const engineer of this.engineers) { engineer.kind = "team"; engineer.members = ENGINEER_TEAM_SIZE; engineer.hp = 40; }
     this.updateSpawnPoints(tx, ty);
     this.bg = null;
     this.phase = "playing";
     this.nextHorde = this.t + 12;
     this.fog.revealArea(this.core.x, this.core.y, 7);
     this.updateFog();
-    this.message = "Cruiser down! All reinforcements now deploy from the ship. Endless hordes inbound.";
+    this.perimeter = this.perimeterStatus();
+    this.message = "Cruiser down! Drag wall lines with [4] and seal the landing zone.";
     return true;
   }
 
