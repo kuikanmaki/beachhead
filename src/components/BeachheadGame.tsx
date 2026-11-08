@@ -28,7 +28,10 @@ export function BeachheadGame() {
   const [dragging, setDragging] = useState(false);
   const [mode, setModeState] = useState<Mode>("select");
   const [mute, setMute] = useState(false);
+  const [briefingOpen, setBriefingOpen] = useState(true);
+  const briefingRef = useRef(true);
   const [, setTick] = useState(0);
+  const setBriefing = (open: boolean) => { briefingRef.current = open; setBriefingOpen(open); };
   const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
   const toggleMute = () => setMute((m) => { setMuted(!m); return !m; });
   const applyZoom = (next: number, u = 0.5, v = 0.5) => {
@@ -51,8 +54,10 @@ export function BeachheadGame() {
       const g = gameRef.current!, cv = canvasRef.current;
       if (cv) {
         if (cv.width !== W * T * RS || cv.height !== H * T * RS) { cv.width = W * T * RS; cv.height = H * T * RS; }
-        g.update(dt);
-        audioTick(g, dt);
+        if (!briefingRef.current) {
+          g.update(dt);
+          audioTick(g, dt);
+        }
         renderGame(g, cv.getContext("2d")!, hoverRef.current, modeRef.current, cameraRef.current, wallDraftRef.current);
       }
       hud += dt;
@@ -62,6 +67,11 @@ export function BeachheadGame() {
     raf = requestAnimationFrame(loop);
     const onKey = (e: KeyboardEvent) => {
       unlockAudio();
+      if (briefingRef.current) {
+        if (e.key === "Escape" || e.key === "Enter") setBriefing(false);
+        return;
+      }
+      if (e.key === "?") { setBriefing(true); return; }
       if (e.key === "1") setMode("infantry");
       if (e.key === "2") gameRef.current?.trainEngineer();
       if (e.key === "3") setMode("tower");
@@ -165,8 +175,20 @@ export function BeachheadGame() {
     gameRef.current?.unselect();
     setTick((t) => t + 1);
   };
-  const restart = () => { gameRef.current = freshGame(); setMode("select"); wallDragRef.current = null; updateWallDraft(null); resetView(); };
-  const continueMission = () => { if (gameRef.current?.continueToCruiser()) setMode("select"); };
+  const restart = () => {
+    gameRef.current = freshGame();
+    setMode("select");
+    wallDragRef.current = null;
+    updateWallDraft(null);
+    resetView();
+    setBriefing(true);
+  };
+  const continueMission = () => {
+    if (gameRef.current?.continueToCruiser()) {
+      setMode("select");
+      setBriefing(true);
+    }
+  };
 
   const g = gameRef.current;
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -195,7 +217,7 @@ export function BeachheadGame() {
         onMouseMove={(e) => (hoverRef.current = toWorld(e))}
         onMouseLeave={() => (hoverRef.current = null)}
       />
-      {g && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} continueMission={continueMission} zoom={zoom} applyZoom={applyZoom} resetView={resetView} />}
+      {g && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} continueMission={continueMission} zoom={zoom} applyZoom={applyZoom} resetView={resetView} openBriefing={() => setBriefing(true)} />}
       {g && wallDraft && (
         <div className="pointer-events-none absolute bottom-16 left-4 rounded-sm border border-primary/40 bg-card/90 px-3 py-2 font-mono text-xs backdrop-blur-sm" aria-live="polite">
           {(() => {
@@ -204,13 +226,14 @@ export function BeachheadGame() {
           })()}
         </div>
       )}
+      {g && briefingOpen && <FieldManual g={g} fmt={fmt} onClose={() => setBriefing(false)} />}
     </div>
   );
 }
 
-function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission, zoom, applyZoom, resetView }: {
+function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission, zoom, applyZoom, resetView, openBriefing }: {
   g: Game; mode: Mode; setMode: (m: Mode) => void; mute: boolean; toggleMute: () => void; fmt: (s: number) => string; restart: () => void; continueMission: () => void;
-  zoom: number; applyZoom: (next: number) => void; resetView: () => void;
+  zoom: number; applyZoom: (next: number) => void; resetView: () => void; openBriefing: () => void;
 }) {
   const hold = g.phase === "playing" ? g.holdTime() : 0;
   const soldiers = g.infantry.reduce((a, p) => a + p.soldiers, 0);
