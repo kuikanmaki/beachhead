@@ -225,7 +225,7 @@ export function BeachheadGame() {
           {(() => {
             const plan = g.wallPlan(wallDraft.x1, wallDraft.y1, wallDraft.x2, wallDraft.y2);
             return plan.valid
-              ? <><p className="text-primary">Continuous wall · {plan.tiles.length} segments</p><p className="mt-1 text-muted-foreground">Release to build · up to {plan.tiles.length * COST.wall} credits, charged as built</p></>
+              ? <><p className="text-primary">Continuous wall · {plan.buildable.length} new segments</p><p className="mt-1 text-muted-foreground">Release to build · up to {plan.buildable.length * COST.wall} credits, charged as built</p></>
               : <><p className="text-destructive">Wall blocked · nothing will be built</p><p className="mt-1 text-muted-foreground">Redraw so every outlined segment is clear and connected.</p></>;
           })()}
         </div>

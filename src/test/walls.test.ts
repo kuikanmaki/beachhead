@@ -88,6 +88,18 @@ describe("Level 2 engineer teams and walls", () => {
     expect(game.wallJobs).toHaveLength(0);
   });
 
+  it("joins a new line to an existing wall corner without duplicating it", () => {
+    const game = cruiserGame(72);
+    expect(game.buildWall(10.5, 10.5, 12.5, 10.5)).toBe(true);
+    const wallCount = game.walls.length;
+    const plan = game.wallPlan(12.5, 10.5, 12.5, 12.5);
+    expect(plan.siteStatus).toEqual(["connector", "buildable", "buildable"]);
+    expect(plan.valid).toBe(true);
+    expect(game.buildWall(12.5, 10.5, 12.5, 12.5)).toBe(true);
+    expect(game.walls).toHaveLength(wallCount + 2);
+    expect(game.walls.map((wall) => [wall.tx, wall.ty])).toEqual([[10, 10], [11, 10], [12, 10], [12, 11], [12, 12]]);
+  });
+
   it("rejects a line that overlaps an existing wall instead of skipping it", () => {
     const game = cruiserGame(72);
     expect(game.buildWall(10.5, 10.5, 12.5, 10.5)).toBe(true);

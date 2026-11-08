@@ -446,15 +446,22 @@ export class Game {
 
   wallPlan(x1: number, y1: number, x2: number, y2: number) {
     const tiles = this.wallLine(x1, y1, x2, y2);
-    const buildable = tiles.filter(({ tx, ty }) => this.canBuildWallAt(tx, ty));
     const continuous = tiles.every((tile, i) => {
       if (!i) return true;
       const previous = tiles[i - 1];
       const tileSteps = Math.max(Math.abs(tile.tx - previous.tx), Math.abs(tile.ty - previous.ty));
       return tileSteps === 1 && Math.hypot(tile.x - previous.x, tile.y - previous.y) <= 1.000001;
     });
-    const blocked = tiles.length - buildable.length;
-    return { tiles, buildable, blocked, continuous, valid: blocked === 0 && continuous };
+    // A new line may join an existing wall or sheer rock at either end, never skip an interior site.
+    const siteStatus = tiles.map(({ tx, ty }, i) => {
+      if (this.canBuildWallAt(tx, ty)) return "buildable" as const;
+      const inBounds = tx >= 0 && ty >= 0 && tx < W && ty < H;
+      const connector = (i === 0 || i === tiles.length - 1) && inBounds && (this.at(tx, ty) === ROCK || !!this.wallAt(tx, ty));
+      return connector ? "connector" as const : "blocked" as const;
+    });
+    const buildable = tiles.filter((_, i) => siteStatus[i] === "buildable");
+    const blocked = siteStatus.filter((status) => status === "blocked").length;
+    return { tiles, siteStatus, buildable, blocked, continuous, valid: blocked === 0 && continuous && buildable.length > 0 };
   }
 
   nextWallSegment(job: WallJob) {
