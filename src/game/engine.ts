@@ -407,8 +407,8 @@ export class Game {
     if (!plan.buildable.length) return (this.message = "No clear wall sites along that line. Rock and existing structures are skipped."), false;
     const jobId = this.nid++;
     const job: WallJob = { id: jobId, engineerId: null, wallIds: [] };
-    for (const { tx, ty } of plan.buildable) {
-      const segment: WallSegment = { id: this.nid++, jobId, tx, ty, built: 0, paid: false };
+    for (const { tx, ty, x, y, angle } of plan.buildable) {
+      const segment: WallSegment = { id: this.nid++, jobId, tx, ty, x, y, angle, built: 0, paid: false };
       this.walls.push(segment); job.wallIds.push(segment.id);
     }
     this.wallJobs.push(job); this.assignWallJob(job);

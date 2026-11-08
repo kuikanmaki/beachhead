@@ -545,7 +545,7 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     const job = g.towers.find((t) => t.id === e.job && t.built < 1);
     const wallJob = g.activeWallJob(e.id), segment = wallJob ? g.nextWallSegment(wallJob) : undefined;
     if (moving) s.ang = turn(s.ang, Math.atan2(my, mx), dt * 8);
-    else if (segment) s.ang = turn(s.ang, Math.atan2(segment.ty + 0.5 - e.y, segment.tx + 0.5 - e.x), dt * 8);
+    else if (segment) s.ang = turn(s.ang, Math.atan2(segment.y - e.y, segment.x - e.x), dt * 8);
     else if (job) s.ang = turn(s.ang, Math.atan2(job.ty + 0.5 - e.y, job.tx + 0.5 - e.x), dt * 8);
     s.px = e.x; s.py = e.y;
     if (sel) {
