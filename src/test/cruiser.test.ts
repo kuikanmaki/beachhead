@@ -76,7 +76,7 @@ describe("second-stage command cruiser", () => {
     expect(engineer.y).toBe(game.core.y);
   });
 
-  it("increases both horde volume and enemy strength in the second stage", () => {
+  it("starts with a smaller horde while retaining stronger second-stage enemies", () => {
     setMapSize(2);
     const first = new Game(30), second = new Game(30);
     for (const game of [first, second]) {
@@ -90,7 +90,8 @@ describe("second-stage command cruiser", () => {
     first.update(0.01);
     second.update(0.01);
     expect(second.wave).toBe(1);
-    expect(second.bugs.length).toBeGreaterThan(first.bugs.length);
+    expect(second.bugs.length).toBe(20);
+    expect(first.bugs.length).toBe(22);
 
     const levelOne = new Game(31), levelTwo = new Game(31);
     for (const game of [levelOne, levelTwo]) { game.spawns = [0]; game.t = 200; }
@@ -102,6 +103,66 @@ describe("second-stage command cruiser", () => {
     expect(secondBug.hp).toBeGreaterThan(firstBug.hp);
     expect(secondBug.dmg).toBeGreaterThan(firstBug.dmg);
     expect(secondBug.speed).toBeGreaterThan(firstBug.speed);
+  });
+
+  it("clears leftover enemies and resets the wave counter when Level 2 begins", () => {
+    setMapSize(2);
+    const game = new Game(32);
+    game.map.fill(GROUND);
+    game.land(16, 16);
+    game.t = 900;
+    game.wave = 15;
+    game.spawnAcc = 0.9;
+    game.spawnBug(0);
+    expect(game.bugs).toHaveLength(1);
+    game.phase = "won";
+    game.continueToCruiser();
+    expect(game.bugs).toHaveLength(0);
+    game.landCruiser(36, 16);
+    expect(game.bugs).toHaveLength(0);
+    expect(game.wave).toBe(0);
+    expect(game.spawnAcc).toBe(0);
+    expect(game.nextHorde - game.t).toBe(90);
+  });
+
+  it("allows 60 enemy-free seconds even after a long first level", () => {
+    const game = gameWithCruiser();
+    game.t = 1000;
+    game.levelStartedAt = 1000;
+    game.nextHorde = 1090;
+    for (let i = 0; i < 600; i++) game.update(0.1);
+    expect(game.bugs).toHaveLength(0);
+    expect(game.wave).toBe(0);
+    for (let i = 0; i < 100; i++) game.update(0.1);
+    expect(game.bugs.length).toBeGreaterThan(0);
+  });
+
+  it("grows successive hordes and shortens their intervals gradually", () => {
+    const game = gameWithCruiser();
+    const sizes: number[] = [];
+    const intervals: number[] = [];
+    for (let wave = 0; wave < 3; wave++) {
+      game.bugs = [];
+      game.spawnAcc = 0;
+      game.t = game.nextHorde;
+      game.update(0.01);
+      sizes.push(game.bugs.length);
+      intervals.push(Math.round(game.nextHorde - game.t));
+    }
+    expect(sizes).toEqual([20, 28, 36]);
+    expect(intervals).toEqual([60, 55, 50]);
+  });
+
+  it("scales enemy health with Level 2 time rather than previous mission duration", () => {
+    const early = gameWithCruiser(), late = gameWithCruiser();
+    early.t = 1060;
+    early.levelStartedAt = 1000;
+    late.t = 1360;
+    late.levelStartedAt = 1000;
+    early.spawnBug(0);
+    late.spawnBug(0);
+    expect(early.bugs[0]?.hp).toBe(54);
+    expect(late.bugs[0]?.hp).toBe(94);
   });
 
   it("keeps the second stage running beyond the first-stage victory condition", () => {

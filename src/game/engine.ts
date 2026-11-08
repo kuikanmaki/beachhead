@@ -16,6 +16,8 @@ export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
 export const CRUISER_RADIUS = 3; // clear 7×7-tile landing footprint
 export const CRUISER_HP = 1400;
+export const LEVEL_TWO_GRACE = 60;
+export const LEVEL_TWO_FIRST_HORDE = 90;
 
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
 export type InfantryKind = "team" | "squad";
@@ -64,6 +66,7 @@ export class Game {
   phase: "landing" | "shipLanding" | "playing" | "won" | "lost" = "landing";
   level = 1;
   hasCruiser = false;
+  levelStartedAt = 0;
   core = { x: 0, y: 0, hp: 600, max: 600 };
   bugs: Bug[] = [];
   infantry: Infantry[] = [];
@@ -191,6 +194,10 @@ export class Game {
     if (this.phase !== "won" || this.level !== 1) return false;
     this.level = 2;
     this.phase = "shipLanding";
+    this.bugs = [];
+    this.tracers = [];
+    this.wave = 0;
+    this.spawnAcc = 0;
     this.selected = null;
     this.message = "Level 2: choose a clear 7×7 sector for the command cruiser.";
     return true;
@@ -220,7 +227,11 @@ export class Game {
     this.updateSpawnPoints(tx, ty);
     this.bg = null;
     this.phase = "playing";
-    this.nextHorde = this.t + 12;
+    this.levelStartedAt = this.t;
+    this.bugs = [];
+    this.wave = 0;
+    this.spawnAcc = 0;
+    this.nextHorde = this.t + LEVEL_TWO_FIRST_HORDE;
     this.fog.revealArea(this.core.x, this.core.y, 7);
     this.updateFog();
     this.perimeter = this.perimeterStatus();
@@ -428,8 +439,9 @@ export class Game {
     if (!available.length) return;
     const s = available[Math.floor(this.rand() * available.length)];
     const tankerChance = this.hasCruiser ? 0.14 : 0.08;
-    const k = kind ?? (this.t > 150 && this.rand() < tankerChance ? 2 : this.rand() < 0.3 ? 1 : 0);
-    const scale = 1 + this.t / 300 + (this.level - 1) * 0.35;
+    const elapsed = this.hasCruiser ? Math.max(0, this.t - this.levelStartedAt - LEVEL_TWO_GRACE) : this.t;
+    const k = kind ?? (elapsed > 150 && this.rand() < tankerChance ? 2 : this.rand() < 0.3 ? 1 : 0);
+    const scale = 1 + elapsed / 300 + (this.level - 1) * 0.35;
     const damageScale = 1 + (this.level - 1) * 0.25;
     const speedScale = 1 + (this.level - 1) * 0.08;
     const def = [
@@ -451,13 +463,18 @@ export class Game {
     this.credits += 4 * dt;
 
     // spawning
-    this.spawnAcc += dt * (0.35 + this.t / 120) * (this.hasCruiser ? 1.35 : 1);
+    const levelElapsed = this.t - this.levelStartedAt;
+    const attackElapsed = Math.max(0, levelElapsed - LEVEL_TWO_GRACE);
+    const spawnRate = this.hasCruiser
+      ? levelElapsed <= LEVEL_TWO_GRACE ? 0 : (0.15 + attackElapsed / 120) * 1.35
+      : 0.35 + this.t / 120;
+    this.spawnAcc += dt * spawnRate;
     while (this.spawnAcc >= 1) { this.spawnAcc--; this.spawnBug(); }
     if (this.t >= this.nextHorde) {
       this.wave++;
-      const n = 14 + this.wave * 8 + (this.level - 1) * 12;
+      const n = (this.hasCruiser ? 12 : 14) + this.wave * 8;
       for (let i = 0; i < n; i++) this.spawnBug(this.wave >= 3 && i % 12 === 0 ? 2 : undefined);
-      this.nextHorde += this.hasCruiser ? 40 : 45;
+      this.nextHorde += this.hasCruiser ? Math.max(40, 65 - this.wave * 5) : 45;
       this.message = `HORDE ${this.wave} INBOUND — ${n} bugs!`;
     }
 
