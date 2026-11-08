@@ -9,7 +9,9 @@ export let H = 32;
 export function setMapSize(aspect: number) { H = 32; W = Math.max(32, Math.min(80, Math.round(32 * aspect))); }
 export const GROUND = 0, HIGH = 1, ROCK = 2;
 
-export const COST = { team: 60, squad: 180, engineer: 80, tower: 120 };
+export const COST = { team: 60, squad: 180, engineer: 80, engineerTeam: 160, tower: 120, wall: 8 };
+export const WALL_BUILD_TIME = 0.75;
+export const ENGINEER_TEAM_SIZE = 4;
 export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
 export const CRUISER_RADIUS = 3; // clear 7×7-tile landing footprint
@@ -18,8 +20,11 @@ export const CRUISER_HP = 1400;
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
 export type InfantryKind = "team" | "squad";
 export type Infantry = { id: number; kind: InfantryKind; fireTeams: number; x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[]; soldiers: number; hp: number; cd: number };
-type Engineer = { id: number; x: number; y: number; hp: number; job: number | null };
+export type Engineer = { id: number; kind: "engineer" | "team"; members: number; x: number; y: number; hp: number; job: number | null };
 type Tower = { id: number; tx: number; ty: number; built: number; hp: number; cd: number };
+export type WallSegment = { id: number; jobId: number; tx: number; ty: number; built: number; paid: boolean };
+export type WallJob = { id: number; engineerId: number | null; wallIds: number[] };
+export type PerimeterStatus = { sealed: boolean; enemiesInside: number };
 type Tracer = { x1: number; y1: number; x2: number; y2: number; life: number; tower: boolean };
 type Splat = { x: number; y: number; life: number; r: number; green: boolean };
 
@@ -64,6 +69,11 @@ export class Game {
   infantry: Infantry[] = [];
   engineers: Engineer[] = [];
   towers: Tower[] = [];
+  walls: WallSegment[] = [];
+  wallJobs: WallJob[] = [];
+  wallGrid = new Uint8Array(W * H);
+  perimeter: PerimeterStatus = { sealed: false, enemiesInside: 0 };
+  lastWallCreditWarning = -Infinity;
   tracers: Tracer[] = [];
   splats: Splat[] = [];
   spawns: number[] = [];
@@ -107,6 +117,11 @@ export class Game {
   }
 
   at(x: number, y: number) { return x < 0 || y < 0 || x >= W || y >= H ? ROCK : this.map[y * W + x]; }
+  wallAt(tx: number, ty: number) { return this.walls.find((w) => w.tx === tx && w.ty === ty); }
+  /** Only finished walls block enemies; infantry and engineers can still cross their own lines. */
+  isEnemyBlocked(tx: number, ty: number) {
+    return this.at(tx, ty) === ROCK || (tx >= 0 && ty >= 0 && tx < W && ty < H && this.wallGrid[ty * W + tx] === 1);
+  }
 
   computeFlow() {
     const d = this.dist; d.fill(Infinity);
@@ -120,11 +135,15 @@ export class Game {
       const x = cur % W, y = (cur / W) | 0;
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = x + dx, ny = y + dy, tt = this.at(nx, ny);
-        if (tt === ROCK) continue;
+        if (this.isEnemyBlocked(nx, ny)) continue;
         const nd = d[cur] + (tt === HIGH ? 2.5 : 1);
         if (nd < d[ny * W + nx]) { if (d[ny * W + nx] === Infinity) open.push(ny * W + nx); d[ny * W + nx] = nd; }
       }
     }
+  }
+
+  newEngineer(kind: Engineer["kind"]): Engineer {
+    return { id: this.nid++, kind, members: kind === "team" ? ENGINEER_TEAM_SIZE : 1, x: this.core.x, y: this.core.y, hp: 40, job: null };
   }
 
   land(tx: number, ty: number) {
@@ -137,7 +156,9 @@ export class Game {
     this.bg = null;
     this.phase = "playing";
     this.infantry.push(this.newInfantry(this.core.x, this.core.y + 1.5));
-    this.engineers.push({ id: this.nid++, x: this.core.x - 1, y: this.core.y, hp: 40, job: null });
+    const engineer = this.newEngineer("engineer");
+    engineer.x = this.core.x - 1;
+    this.engineers.push(engineer);
     this.updateFog();
     this.message = "Team down! The swarm is coming. Hold the line.";
     return true;
@@ -178,7 +199,7 @@ export class Game {
   canLandCruiser(tx: number, ty: number) {
     if (tx - CRUISER_RADIUS < 0 || ty - CRUISER_RADIUS < 0 || tx + CRUISER_RADIUS >= W || ty + CRUISER_RADIUS >= H) return false;
     for (let y = ty - CRUISER_RADIUS; y <= ty + CRUISER_RADIUS; y++) for (let x = tx - CRUISER_RADIUS; x <= tx + CRUISER_RADIUS; x++) {
-      if (this.at(x, y) === ROCK || this.towers.some((t) => t.tx === x && t.ty === y)) return false;
+      if (this.at(x, y) === ROCK || this.towers.some((t) => t.tx === x && t.ty === y) || this.wallAt(x, y)) return false;
     }
     return true;
   }
@@ -194,13 +215,16 @@ export class Game {
     }
     this.core = { x: tx + 0.5, y: ty + 0.5, hp: CRUISER_HP, max: CRUISER_HP };
     this.hasCruiser = true;
+    // Surviving engineers are reorganized into four-person teams for the construction objective.
+    for (const engineer of this.engineers) { engineer.kind = "team"; engineer.members = ENGINEER_TEAM_SIZE; engineer.hp = 40; }
     this.updateSpawnPoints(tx, ty);
     this.bg = null;
     this.phase = "playing";
     this.nextHorde = this.t + 12;
     this.fog.revealArea(this.core.x, this.core.y, 7);
     this.updateFog();
-    this.message = "Cruiser down! All reinforcements now deploy from the ship. Endless hordes inbound.";
+    this.perimeter = this.perimeterStatus();
+    this.message = "Cruiser down! Drag wall lines with [4] and seal the landing zone.";
     return true;
   }
 
@@ -292,17 +316,98 @@ export class Game {
     return true;
   }
   trainEngineer() {
+    return this.hasCruiser ? this.trainEngineerTeam() : this.deployEngineer("engineer");
+  }
+  trainEngineerTeam() {
+    if (!this.hasCruiser) return (this.message = "Engineer teams require the Level 2 command cruiser."), false;
+    return this.deployEngineer("team");
+  }
+  private deployEngineer(kind: Engineer["kind"]) {
     if (this.phase !== "playing") return false;
-    if (this.credits < COST.engineer) return (this.message = "Not enough credits for an engineer."), false;
-    this.credits -= COST.engineer;
-    this.engineers.push({ id: this.nid++, x: this.core.x, y: this.core.y, hp: 40, job: null });
-    this.message = this.hasCruiser ? "Engineer deployed from the cruiser." : "Engineer ready.";
+    const cost = kind === "team" ? COST.engineerTeam : COST.engineer;
+    if (this.credits < cost) return (this.message = `Not enough credits for an ${kind === "team" ? "engineer team" : "engineer"}.`), false;
+    this.credits -= cost;
+    this.engineers.push(this.newEngineer(kind));
+    this.message = kind === "team" ? "Four-person engineer team deployed from the cruiser." : "Engineer ready.";
     return true;
   }
+
+  /** A four-connected raster line prevents diagonal gaps in a defensive perimeter. */
+  wallLine(x1: number, y1: number, x2: number, y2: number) {
+    let x = Math.floor(x1), y = Math.floor(y1);
+    const endX = Math.floor(x2), endY = Math.floor(y2);
+    const dx = Math.abs(endX - x), sx = Math.sign(endX - x);
+    const dy = -Math.abs(endY - y), sy = Math.sign(endY - y);
+    let err = dx + dy;
+    const tiles: { tx: number; ty: number }[] = [{ tx: x, ty: y }];
+    while (x !== endX || y !== endY) {
+      const e2 = 2 * err, moveX = e2 >= dy, moveY = e2 <= dx;
+      if (moveX && moveY && sx && sy) tiles.push({ tx: x + sx, ty: y });
+      if (moveX) { err += dy; x += sx; }
+      if (moveY) { err += dx; y += sy; }
+      const last = tiles[tiles.length - 1];
+      if (!last || last.tx !== x || last.ty !== y) tiles.push({ tx: x, ty: y });
+    }
+    return tiles;
+  }
+
+  canBuildWallAt(tx: number, ty: number) {
+    return tx >= 0 && ty >= 0 && tx < W && ty < H && this.at(tx, ty) !== ROCK && !this.wallAt(tx, ty)
+      && !this.towers.some((t) => t.tx === tx && t.ty === ty)
+      && !(Math.floor(this.core.x) === tx && Math.floor(this.core.y) === ty);
+  }
+
+  wallPlan(x1: number, y1: number, x2: number, y2: number) {
+    const tiles = this.wallLine(x1, y1, x2, y2);
+    const buildable = tiles.filter(({ tx, ty }) => this.canBuildWallAt(tx, ty));
+    return { tiles, buildable, blocked: tiles.length - buildable.length };
+  }
+
+  nextWallSegment(job: WallJob) {
+    for (const id of job.wallIds) {
+      const segment = this.walls.find((w) => w.id === id);
+      if (segment && segment.built < 1) return segment;
+    }
+    return undefined;
+  }
+
+  activeWallJob(engineerId: number) {
+    return this.wallJobs.find((job) => job.engineerId === engineerId && this.nextWallSegment(job));
+  }
+
+  assignWallJob(job: WallJob) {
+    const first = this.nextWallSegment(job);
+    const teams = this.engineers.filter((e) => e.kind === "team" && e.members > 0);
+    if (!first || !teams.length) return false;
+    teams.sort((a, b) => {
+      const queueA = this.wallJobs.filter((j) => j.engineerId === a.id && this.nextWallSegment(j)).length;
+      const queueB = this.wallJobs.filter((j) => j.engineerId === b.id && this.nextWallSegment(j)).length;
+      return queueA - queueB || Math.hypot(a.x - first.tx, a.y - first.ty) - Math.hypot(b.x - first.tx, b.y - first.ty);
+    });
+    job.engineerId = teams[0].id;
+    return true;
+  }
+
+  buildWall(x1: number, y1: number, x2: number, y2: number) {
+    if (this.phase !== "playing" || !this.hasCruiser) return (this.message = "Walls unlock with the Level 2 engineer teams."), false;
+    if (!this.engineers.some((e) => e.kind === "team" && e.members > 0)) return (this.message = "Deploy an engineer team before marking a wall."), false;
+    const plan = this.wallPlan(x1, y1, x2, y2);
+    if (!plan.buildable.length) return (this.message = "No clear wall sites along that line. Rock and existing structures are skipped."), false;
+    const jobId = this.nid++;
+    const job: WallJob = { id: jobId, engineerId: null, wallIds: [] };
+    for (const { tx, ty } of plan.buildable) {
+      const segment: WallSegment = { id: this.nid++, jobId, tx, ty, built: 0, paid: false };
+      this.walls.push(segment); job.wallIds.push(segment.id);
+    }
+    this.wallJobs.push(job); this.assignWallJob(job);
+    this.message = `Wall marked: ${plan.buildable.length} segments, built in drag order for ${COST.wall} credits each.`;
+    return true;
+  }
+
   placeTower(tx: number, ty: number) {
     if (this.phase !== "playing") return false;
     if (this.at(tx, ty) === ROCK) return (this.message = "Can't build on rock."), false;
-    if (this.towers.some((t) => t.tx === tx && t.ty === ty) || (Math.floor(this.core.x) === tx && Math.floor(this.core.y) === ty))
+    if (this.towers.some((t) => t.tx === tx && t.ty === ty) || this.wallAt(tx, ty) || (Math.floor(this.core.x) === tx && Math.floor(this.core.y) === ty))
       return (this.message = "Tile occupied."), false;
     if (this.credits < COST.tower) return (this.message = "Not enough credits for a tower."), false;
     if (!this.engineers.length) return (this.message = "You need an engineer to build towers."), false;
@@ -319,8 +424,9 @@ export class Game {
 
   // ---------- simulation ----------
   spawnBug(kind?: 0 | 1 | 2) {
-    if (!this.spawns.length) return;
-    const s = this.spawns[Math.floor(this.rand() * this.spawns.length)];
+    const available = this.spawns.filter((s) => !this.isEnemyBlocked(s % W, (s / W) | 0));
+    if (!available.length) return;
+    const s = available[Math.floor(this.rand() * available.length)];
     const tankerChance = this.hasCruiser ? 0.14 : 0.08;
     const k = kind ?? (this.t > 150 && this.rand() < tankerChance ? 2 : this.rand() < 0.3 ? 1 : 0);
     const scale = 1 + this.t / 300 + (this.level - 1) * 0.35;
@@ -362,7 +468,10 @@ export class Game {
         const hg = this.at(Math.floor(p.x), Math.floor(p.y)) === HIGH ? 0.55 : 1;
         p.hp -= d * hg; while (p.hp <= 0 && p.soldiers > 0) { const over = -p.hp; this.killSoldier(p); p.hp -= over; }
       } });
-      for (const e of this.engineers) targets.push({ x: e.x, y: e.y, hit: (d) => (e.hp -= d) });
+      for (const e of this.engineers) targets.push({ x: e.x, y: e.y, hit: (d) => {
+        e.hp -= d;
+        while (e.hp <= 0 && e.members > 0) { const over = -e.hp; e.members--; e.hp = 40; e.hp -= over; }
+      } });
       for (const t of this.towers) targets.push({ x: t.tx + 0.5, y: t.ty + 0.5, hit: (d) => (t.hp -= d) });
       targets.push({ x: this.core.x, y: this.core.y, hit: (d) => (this.core.hp -= d) });
       let best = null, bd = 1.6;
@@ -375,7 +484,7 @@ export class Game {
         let bv = this.dist[cy * W + cx], bx = cx, by = cy;
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
           const nx = cx + dx, ny = cy + dy;
-          if (this.at(nx, ny) === ROCK || (dx && dy && (this.at(cx + dx, cy) === ROCK || this.at(cx, cy + dy) === ROCK))) continue;
+          if (this.isEnemyBlocked(nx, ny) || (dx && dy && (this.isEnemyBlocked(cx + dx, cy) || this.isEnemyBlocked(cx, cy + dy)))) continue;
           const v = this.dist[ny * W + nx] + (dx && dy ? 0.4 : 0);
           if (v < bv) { bv = v; bx = nx; by = ny; }
         }
@@ -383,9 +492,10 @@ export class Game {
       }
       const l = Math.hypot(mx, my) || 1;
       const sp = b.speed * (this.at(Math.floor(b.x), Math.floor(b.y)) === HIGH ? 0.55 : 1);
+      const oldX = b.x, oldY = b.y;
       b.x += (mx / l) * sp * dt + (this.rand() - 0.5) * 0.04;
       b.y += (my / l) * sp * dt + (this.rand() - 0.5) * 0.04;
-      if (this.at(Math.floor(b.x), Math.floor(b.y)) === ROCK) { b.x -= (mx / l) * sp * dt; b.y -= (my / l) * sp * dt; }
+      if (this.isEnemyBlocked(Math.floor(b.x), Math.floor(b.y))) { b.x = oldX; b.y = oldY; }
     }
 
     const nearestBug = (x: number, y: number, range: number) => {
@@ -418,24 +528,48 @@ export class Game {
     this.infantry = this.infantry.filter((p) => p.soldiers > 0);
     if (this.selected && !this.infantry.some((p) => p.id === this.selected)) this.selected = null;
 
-    // engineers
+    // Engineer teams prioritize queued wall lines, then return to automatic tower construction.
+    for (const job of this.wallJobs) {
+      if (!this.nextWallSegment(job)) continue;
+      const assigned = this.engineers.some((e) => e.id === job.engineerId && e.kind === "team" && e.members > 0);
+      if (!assigned) { job.engineerId = null; this.assignWallJob(job); }
+    }
     for (const e of this.engineers) {
-      let job = this.towers.find((t) => t.id === e.job && t.built < 1);
-      if (!job) {
+      const wallJob = this.activeWallJob(e.id), segment = wallJob ? this.nextWallSegment(wallJob) : undefined;
+      let job = segment ? undefined : this.towers.find((t) => t.id === e.job && t.built < 1);
+      if (!segment && !job) {
         e.job = null;
         const free = this.towers.filter((t) => t.built < 1 && !this.engineers.some((o) => o.job === t.id));
         const any = free.length ? free : this.towers.filter((t) => t.built < 1);
         any.sort((a, b) => Math.hypot(a.tx - e.x, a.ty - e.y) - Math.hypot(b.tx - e.x, b.ty - e.y));
         job = any[0]; if (job) e.job = job.id;
       }
-      const gx = job ? job.tx + 0.5 : this.core.x - 1, gy = job ? job.ty + 1.2 : this.core.y + 0.8;
+      const gx = segment ? segment.tx + 0.5 : job ? job.tx + 0.5 : this.core.x - 1;
+      const gy = segment ? segment.ty + 0.5 : job ? job.ty + 1.2 : this.core.y + 0.8;
       const dx = gx - e.x, dy = gy - e.y, d = Math.hypot(dx, dy);
       if (d > 0.15) { e.x += (dx / d) * Math.min(d, 2.6 * dt); e.y += (dy / d) * Math.min(d, 2.6 * dt); }
+      else if (segment) {
+        if (!segment.paid) {
+          if (this.credits >= COST.wall) { this.credits -= COST.wall; segment.paid = true; }
+          else if (this.t - this.lastWallCreditWarning >= 2) {
+            this.lastWallCreditWarning = this.t;
+            this.message = `Wall construction paused: ${COST.wall} credits needed for the next segment.`;
+          }
+        }
+        if (segment.paid) {
+          segment.built = Math.min(1, segment.built + dt / WALL_BUILD_TIME);
+          if (segment.built >= 1 && !this.wallGrid[segment.ty * W + segment.tx]) {
+            this.wallGrid[segment.ty * W + segment.tx] = 1;
+            this.computeFlow();
+            this.message = `Wall segment secured. ${this.walls.filter((w) => w.built >= 1).length} completed.`;
+          }
+        }
+      }
       else if (job) job.built = Math.min(1, job.built + dt / 6);
     }
     this.engineers = this.engineers.filter((e) => {
-      if (e.hp <= 0) this.splats.push({ x: e.x, y: e.y, life: 30, r: 0.3, green: false });
-      return e.hp > 0;
+      if (e.members <= 0 || e.hp <= 0) this.splats.push({ x: e.x, y: e.y, life: 30, r: 0.3, green: false });
+      return e.members > 0 && e.hp > 0;
     });
 
     // towers
@@ -464,11 +598,54 @@ export class Game {
     if (this.splats.length > 400) this.splats.splice(0, this.splats.length - 400);
 
     this.updateFog();
+    if (this.hasCruiser) this.perimeter = this.perimeterStatus();
 
     // win / lose
     if (this.core.hp <= 0) { this.phase = "lost"; this.message = this.hasCruiser ? "The command cruiser has been destroyed." : "The LZ has been overrun."; }
     else if (!this.infantry.length && !this.engineers.length) { this.phase = "lost"; this.message = "All units lost. The beachhead falls."; }
     else if (this.level === 1 && this.t >= WIN_AFTER && this.t - this.lastDeath >= HOLD_NEEDED) { this.phase = "won"; this.message = "The defenses hold. Beachhead secured!"; }
+    else if (this.level === 2 && this.perimeter.sealed && this.perimeter.enemiesInside === 0) {
+      this.phase = "won"; this.message = "Perimeter sealed and clear. Landing zone secured!";
+    }
+  }
+
+  /** Flood from the map edges: if outside ground cannot reach the cruiser, its perimeter is sealed. */
+  perimeterStatus(): PerimeterStatus {
+    const size = W * H, exterior = new Uint8Array(size), queue = new Int32Array(size);
+    let head = 0, tail = 0;
+    const addExterior = (tx: number, ty: number) => {
+      const index = ty * W + tx;
+      if (exterior[index] || this.isEnemyBlocked(tx, ty)) return;
+      exterior[index] = 1; queue[tail++] = index;
+    };
+    for (let x = 0; x < W; x++) { addExterior(x, 0); addExterior(x, H - 1); }
+    for (let y = 0; y < H; y++) { addExterior(0, y); addExterior(W - 1, y); }
+    while (head < tail) {
+      const cur = queue[head++], x = cur % W, y = (cur / W) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < W && ny < H) addExterior(nx, ny);
+      }
+    }
+    const coreIndex = Math.floor(this.core.y) * W + Math.floor(this.core.x);
+    if (exterior[coreIndex]) return { sealed: false, enemiesInside: 0 };
+
+    // Only contacts in the cruiser's own sealed region delay completion, not separate pockets or outside hordes.
+    const inside = new Uint8Array(size);
+    head = 0; tail = 0; queue[tail++] = coreIndex; inside[coreIndex] = 1;
+    while (head < tail) {
+      const cur = queue[head++], x = cur % W, y = (cur / W) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const next = ny * W + nx;
+        if (inside[next] || this.isEnemyBlocked(nx, ny)) continue;
+        inside[next] = 1; queue[tail++] = next;
+      }
+    }
+    let enemiesInside = 0;
+    for (const bug of this.bugs) if (bug.hp > 0 && inside[Math.floor(bug.y) * W + Math.floor(bug.x)]) enemiesInside++;
+    return { sealed: true, enemiesInside };
   }
 
   towerRangeAt(tx: number, ty: number) { return this.at(tx, ty) === HIGH ? 7 : 5.5; }

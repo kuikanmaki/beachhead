@@ -318,6 +318,37 @@ function cruiser(c: CanvasRenderingContext2D, g: Game, now: number) {
   bar(c, x, y - 2.35, g.core.hp / g.core.max, 3.8);
 }
 
+function wall(c: CanvasRenderingContext2D, w: any, now: number) {
+  const x = w.tx, y = w.ty;
+  if (w.built < 1) {
+    c.fillStyle = w.paid ? "rgba(255,179,71,0.18)" : "rgba(120,130,130,0.12)";
+    c.fillRect(x + 0.06, y + 0.16, 0.88, 0.68);
+    c.strokeStyle = w.paid ? "#ffb347" : "rgba(190,200,195,0.65)"; c.lineWidth = 0.045;
+    c.setLineDash([0.12, 0.09]); c.strokeRect(x + 0.06, y + 0.16, 0.88, 0.68); c.setLineDash([]);
+    if (w.paid) {
+      c.strokeStyle = "#ffd37a"; c.lineWidth = 0.065;
+      c.beginPath(); c.arc(x + 0.5, y + 0.5, 0.31, -Math.PI / 2, -Math.PI / 2 + TAU * w.built); c.stroke();
+    }
+    return;
+  }
+  shadow(c, x + 0.5, y + 0.58, 0.53, 0.4, 0.5);
+  const armor = c.createLinearGradient(x, y, x, y + 1);
+  armor.addColorStop(0, "#9aa29a"); armor.addColorStop(0.35, "#626c65"); armor.addColorStop(1, "#303934");
+  c.fillStyle = armor; c.fillRect(x, y + 0.12, 1, 0.76);
+  c.fillStyle = "#b6bdb2"; c.fillRect(x, y + 0.12, 1, 0.09);
+  c.fillStyle = "#252d29"; c.fillRect(x, y + 0.78, 1, 0.1);
+  c.strokeStyle = "rgba(15,20,17,0.75)"; c.lineWidth = 0.035;
+  c.strokeRect(x + 0.02, y + 0.14, 0.96, 0.72);
+  c.beginPath(); c.moveTo(x + 0.5, y + 0.2); c.lineTo(x + 0.5, y + 0.8); c.stroke();
+  c.fillStyle = "#d2a849";
+  for (const offset of [0.12, 0.62]) {
+    c.beginPath(); c.moveTo(x + offset, y + 0.25); c.lineTo(x + offset + 0.16, y + 0.25);
+    c.lineTo(x + offset + 0.04, y + 0.39); c.lineTo(x + offset - 0.12, y + 0.39); c.closePath(); c.fill();
+  }
+  const pulse = 0.45 + Math.sin(now * 2 + x * 0.7 + y) * 0.15;
+  c.fillStyle = `rgba(120,220,180,${pulse})`; c.fillRect(x + 0.43, y + 0.07, 0.14, 0.05);
+}
+
 function tower(c: CanvasRenderingContext2D, g: Game, t: any, now: number, dt: number, firing: boolean) {
   const x = t.tx + 0.5, y = t.ty + 0.5, s = get(t, -Math.PI / 2);
   if (t.built < 1) {
@@ -391,7 +422,7 @@ function drawFog(g: Game, c: CanvasRenderingContext2D, satellite: boolean) {
 }
 
 // ---------- main ----------
-export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string, camera: Camera, satellite: boolean) {
+export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string, camera: Camera, satellite: boolean, wallDraft: { x1: number; y1: number; x2: number; y2: number } | null = null) {
   const now = performance.now() / 1000, dt = Math.min(0.1, now - (lastNow || now)); lastNow = now;
   if (!g.bg) g.bg = buildTerrain(g);
   sizeUp();
@@ -453,6 +484,7 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   }
 
   if (g.hasCruiser) cruiser(c, g, now); else core(c, g, now);
+  for (const w of g.walls) wall(c, w, now);
   for (const t of g.towers) tower(c, g, t, now, dt, towerFire.has(`${t.tx + 0.5},${t.ty + 0.5}`));
 
   // bugs: satellite sees everything; otherwise only current troop vision reveals contacts.
@@ -498,16 +530,24 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     bar(c, p.x, p.y - (p.kind === "squad" ? 1.55 : 0.85), p.soldiers / maxInfantrySoldiers(p), p.kind === "squad" ? 1.8 : 0.9);
   }
 
-  // engineers
+  // Single engineers in Level 1; compact four-person construction teams in Level 2.
   for (const e of g.engineers) {
     const s = get(e, 0, e.x, e.y);
     const mx = e.x - s.px, my = e.y - s.py, moving = mx * mx + my * my > 1e-6;
     const job = g.towers.find((t) => t.id === e.job && t.built < 1);
+    const wallJob = g.activeWallJob(e.id), segment = wallJob ? g.nextWallSegment(wallJob) : undefined;
     if (moving) s.ang = turn(s.ang, Math.atan2(my, mx), dt * 8);
+    else if (segment) s.ang = turn(s.ang, Math.atan2(segment.ty + 0.5 - e.y, segment.tx + 0.5 - e.x), dt * 8);
     else if (job) s.ang = turn(s.ang, Math.atan2(job.ty + 0.5 - e.y, job.tx + 0.5 - e.x), dt * 8);
     s.px = e.x; s.py = e.y;
-    trooper(c, e.x, e.y, s.ang, "#b0873a", "#ffb347", false, false);
-    if (job && !moving && Math.random() < 0.6) {
+    const ca = Math.cos(s.ang), sa = Math.sin(s.ang);
+    const formation = [[0.25, 0], [-0.1, -0.25], [-0.1, 0.25], [-0.42, 0]];
+    for (let i = 0; i < e.members; i++) {
+      const [fx, fy] = formation[i];
+      trooper(c, e.x + fx * ca - fy * sa, e.y + fx * sa + fy * ca, s.ang, "#b0873a", "#ffb347", false, false);
+    }
+    const building = (job || (segment && segment.paid)) && !moving;
+    if (building && Math.random() < 0.6) {
       const a = Math.random() * TAU;
       parts.push({ x: e.x + Math.cos(s.ang) * 0.3, y: e.y + Math.sin(s.ang) * 0.3, vx: Math.cos(a) * 2, vy: Math.sin(a) * 2, life: 0.25, max: 0.25, col: "160,220,255", r: 0.04 });
     }
@@ -532,6 +572,21 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   c.globalCompositeOperation = "source-over";
 
   // placement previews
+  if (mode === "wall" && wallDraft) {
+    const plan = g.wallPlan(wallDraft.x1, wallDraft.y1, wallDraft.x2, wallDraft.y2);
+    for (const { tx, ty } of plan.tiles) {
+      const ok = g.canBuildWallAt(tx, ty), col = ok ? "255,190,80" : "255,90,60";
+      c.fillStyle = `rgba(${col},${ok ? 0.28 : 0.18})`; c.fillRect(tx + 0.06, ty + 0.16, 0.88, 0.68);
+      c.strokeStyle = `rgba(${col},0.85)`; c.lineWidth = 0.04; c.strokeRect(tx + 0.06, ty + 0.16, 0.88, 0.68);
+    }
+    c.strokeStyle = "rgba(255,220,150,0.75)"; c.lineWidth = 0.05; c.setLineDash([0.18, 0.12]);
+    c.beginPath(); c.moveTo(wallDraft.x1, wallDraft.y1); c.lineTo(wallDraft.x2, wallDraft.y2); c.stroke(); c.setLineDash([]);
+    c.fillStyle = "#ffd37a"; c.beginPath(); c.arc(wallDraft.x1, wallDraft.y1, 0.13, 0, TAU); c.fill();
+  }
+  if (hover && mode === "wall" && !wallDraft) {
+    c.strokeStyle = "rgba(255,211,122,0.85)"; c.lineWidth = 0.05;
+    c.strokeRect(Math.floor(hover.x) + 0.08, Math.floor(hover.y) + 0.18, 0.84, 0.64);
+  }
   if (hover && mode === "tower") {
     const tx = Math.floor(hover.x), ty = Math.floor(hover.y), known = g.fog.stateAt(hover.x, hover.y, satellite) > 0;
     const ok = known && g.at(tx, ty) !== ROCK, high = known && g.at(tx, ty) === HIGH;
