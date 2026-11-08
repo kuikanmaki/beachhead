@@ -9,20 +9,36 @@ export let H = 32;
 export function setMapSize(aspect: number) { H = 32; W = Math.max(32, Math.min(80, Math.round(32 * aspect))); }
 export const GROUND = 0, HIGH = 1, ROCK = 2;
 
-export const COST = { platoon: 60, engineer: 80, tower: 120 };
+export const COST = { team: 60, squad: 180, engineer: 80, tower: 120 };
 export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
 export const CRUISER_RADIUS = 3; // clear 7×7-tile landing footprint
 export const CRUISER_HP = 1400;
 
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
-type Platoon = { id: number; x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[]; soldiers: number; hp: number; cd: number };
+export type InfantryKind = "team" | "squad";
+export type Infantry = { id: number; kind: InfantryKind; fireTeams: number; x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[]; soldiers: number; hp: number; cd: number };
 type Engineer = { id: number; x: number; y: number; hp: number; job: number | null };
 type Tower = { id: number; tx: number; ty: number; built: number; hp: number; cd: number };
 type Tracer = { x1: number; y1: number; x2: number; y2: number; life: number; tower: boolean };
 type Splat = { x: number; y: number; life: number; r: number; green: boolean };
 
-const SOLDIER_HP = 20, SQUAD = 5;
+const SOLDIER_HP = 20;
+// US Marine benchmark: four per fire team; three fire teams plus one squad leader.
+export const TEAM_SIZE = 4, SQUAD_FIRE_TEAMS = 3, SQUAD_SIZE = TEAM_SIZE * SQUAD_FIRE_TEAMS + 1;
+export const maxInfantrySoldiers = (unit: Infantry) => unit.kind === "squad" ? SQUAD_SIZE : TEAM_SIZE;
+export type FormationSlot = { x: number; y: number; fireTeam: number | null };
+const TEAM_FORMATION: FormationSlot[] = [
+  { x: 0.28, y: 0, fireTeam: 0 }, { x: -0.12, y: -0.28, fireTeam: 0 },
+  { x: -0.12, y: 0.28, fireTeam: 0 }, { x: -0.45, y: 0, fireTeam: 0 },
+];
+const SQUAD_FORMATION: FormationSlot[] = [
+  ...[[0.05, -0.82], [0.05, 0.82], [-0.78, 0]].flatMap(([cx, cy], fireTeam) =>
+    TEAM_FORMATION.map((slot) => ({ x: cx + slot.x, y: cy + slot.y, fireTeam }))),
+  { x: 0.72, y: 0, fireTeam: null }, // squad leader
+];
+/** Fixed close-order slots keep all three fire teams together under one shared command. */
+export const infantryFormation = (kind: InfantryKind) => kind === "squad" ? SQUAD_FORMATION : TEAM_FORMATION;
 const C = {
   ground: "#8a6a45", ground2: "#7d5f3d", high: "#b08a58", high2: "#c49a63", rock: "#3d2c22", rock2: "#2c201a",
   bug: "#2b1a12", bugEye: "#e8492a", tank: "#4a1f10", inf: "#9fd0ff", infSel: "#ffd34d", eng: "#ffb347",
@@ -45,7 +61,7 @@ export class Game {
   hasCruiser = false;
   core = { x: 0, y: 0, hp: 600, max: 600 };
   bugs: Bug[] = [];
-  platoons: Platoon[] = [];
+  infantry: Infantry[] = [];
   engineers: Engineer[] = [];
   towers: Tower[] = [];
   tracers: Tracer[] = [];
@@ -120,10 +136,10 @@ export class Game {
     this.updateSpawnPoints(tx, ty);
     this.bg = null;
     this.phase = "playing";
-    this.platoons.push(this.newPlatoon(this.core.x, this.core.y + 1.5));
+    this.infantry.push(this.newInfantry(this.core.x, this.core.y + 1.5));
     this.engineers.push({ id: this.nid++, x: this.core.x - 1, y: this.core.y, hp: 40, job: null });
     this.updateFog();
-    this.message = "Platoon down! The swarm is coming. Hold the line.";
+    this.message = "Team down! The swarm is coming. Hold the line.";
     return true;
   }
 
@@ -188,14 +204,18 @@ export class Game {
     return true;
   }
 
-  newPlatoon(tx: number, ty: number): Platoon {
-    const p: Platoon = { id: this.nid++, x: this.core.x, y: this.core.y, tx: this.core.x, ty: this.core.y, path: [], soldiers: SQUAD, hp: SOLDIER_HP, cd: 0 };
-    this.commandPlatoon(p, tx, ty);
+  newInfantry(tx: number, ty: number, kind: InfantryKind = "team"): Infantry {
+    const p: Infantry = {
+      id: this.nid++, kind, fireTeams: kind === "squad" ? SQUAD_FIRE_TEAMS : 1,
+      x: this.core.x, y: this.core.y, tx: this.core.x, ty: this.core.y, path: [],
+      soldiers: kind === "squad" ? SQUAD_SIZE : TEAM_SIZE, hp: SOLDIER_HP, cd: 0,
+    };
+    this.commandInfantry(p, tx, ty);
     return p;
   }
 
-  /** Order infantry along walkable tiles; sheer rock is never a valid shortcut. */
-  commandPlatoon(p: Platoon, x: number, y: number) {
+  /** One order moves the entire team or all three fire teams in a squad together. */
+  commandInfantry(p: Infantry, x: number, y: number) {
     if (this.at(Math.floor(x), Math.floor(y)) === ROCK) {
       this.message = "Infantry can't cross sheer rock.";
       return false;
@@ -243,15 +263,32 @@ export class Game {
   }
 
   // ---------- commands ----------
-  dropPlatoon(x: number, y: number) {
+  dropInfantry(x: number, y: number) {
+    return this.hasCruiser ? this.dropSquad(x, y) : this.dropTeam(x, y);
+  }
+
+  dropTeam(x: number, y: number) {
+    if (this.hasCruiser) return (this.message = "Level 2 deploys full squads."), false;
+    return this.deployInfantry(x, y, "team");
+  }
+
+  dropSquad(x: number, y: number) {
+    if (!this.hasCruiser) return (this.message = "Squads require the Level 2 command cruiser."), false;
+    return this.deployInfantry(x, y, "squad");
+  }
+
+  private deployInfantry(x: number, y: number, kind: InfantryKind) {
     if (this.phase !== "playing") return false;
-    if (this.credits < COST.platoon) return (this.message = "Not enough credits for a platoon."), false;
+    const cost = COST[kind], name = kind === "squad" ? "squad" : "team";
+    if (this.credits < cost) return (this.message = `Not enough credits for a ${name}.`), false;
     if (this.at(Math.floor(x), Math.floor(y)) === ROCK) return (this.message = "Infantry can't stand on sheer rock."), false;
-    const p = this.newPlatoon(x, y);
+    const p = this.newInfantry(x, y, kind);
     if (!p.path.length && Math.hypot(p.x - x, p.y - y) > 0.01) return false;
-    this.credits -= COST.platoon;
-    this.platoons.push(p); this.selected = p.id;
-    this.message = this.hasCruiser ? "Platoon deployed from the cruiser to its rally point." : "Fresh platoon dropping at the LZ.";
+    this.credits -= cost;
+    this.infantry.push(p); this.selected = p.id;
+    this.message = kind === "squad"
+      ? "Squad deployed from the cruiser: three fire teams and one squad leader moving as one."
+      : "Fresh team dropping at the LZ.";
     return true;
   }
   trainEngineer() {
@@ -274,10 +311,10 @@ export class Game {
     this.message = "Tower site marked. Engineers en route."; return true;
   }
   click(x: number, y: number) {
-    const p = this.platoons.find((p) => Math.hypot(p.x - x, p.y - y) < 0.9);
+    const p = this.infantry.find((p) => Math.hypot(p.x - x, p.y - y) < (p.kind === "squad" ? 1.5 : 0.9));
     if (p) { this.selected = p.id; return; }
-    const sel = this.platoons.find((p) => p.id === this.selected);
-    if (sel) this.commandPlatoon(sel, x, y);
+    const sel = this.infantry.find((p) => p.id === this.selected);
+    if (sel) this.commandInfantry(sel, x, y);
   }
 
   // ---------- simulation ----------
@@ -297,7 +334,7 @@ export class Game {
     this.bugs.push({ x: (s % W) + this.rand(), y: ((s / W) | 0) + this.rand(), hp: def.hp * scale, max: def.hp * scale, speed: def.speed * speedScale, dmg: def.dmg * damageScale, r: def.r, kind: k, bounty: def.bounty });
   }
 
-  killSoldier(p: Platoon) {
+  killSoldier(p: Infantry) {
     p.soldiers--; p.hp = SOLDIER_HP; this.deaths++; this.lastDeath = this.t;
     this.splats.push({ x: p.x + (this.rand() - 0.5), y: p.y + (this.rand() - 0.5), life: 30, r: 0.25, green: false });
   }
@@ -321,7 +358,7 @@ export class Game {
     // bugs
     for (const b of this.bugs) {
       const targets: { x: number; y: number; hit: (d: number) => void }[] = [];
-      for (const p of this.platoons) targets.push({ x: p.x, y: p.y, hit: (d) => {
+      for (const p of this.infantry) targets.push({ x: p.x, y: p.y, hit: (d) => {
         const hg = this.at(Math.floor(p.x), Math.floor(p.y)) === HIGH ? 0.55 : 1;
         p.hp -= d * hg; while (p.hp <= 0 && p.soldiers > 0) { const over = -p.hp; this.killSoldier(p); p.hp -= over; }
       } });
@@ -357,8 +394,8 @@ export class Game {
       return best;
     };
 
-    // platoons follow tile-safe routes instead of crossing rock in a straight line
-    for (const p of this.platoons) {
+    // Teams and squads follow tile-safe routes instead of crossing rock in a straight line.
+    for (const p of this.infantry) {
       let movement = 2.4 * dt;
       while (movement > 0 && p.path.length) {
         const waypoint = p.path[0], dx = waypoint.x - p.x, dy = waypoint.y - p.y, d = Math.hypot(dx, dy);
@@ -374,11 +411,12 @@ export class Game {
       if (tg && p.cd <= 0) {
         p.cd = 0.45;
         tg.hp -= 6 * p.soldiers;
-        this.tracers.push({ x1: p.x, y1: p.y, x2: tg.x, y2: tg.y, life: 0.08, tower: false });
+        const volleys = p.kind === "squad" ? [[0, -0.82], [0, 0.82], [-0.78, 0]] : [[0, 0]];
+        for (const [ox, oy] of volleys) this.tracers.push({ x1: p.x + ox, y1: p.y + oy, x2: tg.x, y2: tg.y, life: 0.08, tower: false });
       }
     }
-    this.platoons = this.platoons.filter((p) => p.soldiers > 0);
-    if (this.selected && !this.platoons.some((p) => p.id === this.selected)) this.selected = null;
+    this.infantry = this.infantry.filter((p) => p.soldiers > 0);
+    if (this.selected && !this.infantry.some((p) => p.id === this.selected)) this.selected = null;
 
     // engineers
     for (const e of this.engineers) {
@@ -429,7 +467,7 @@ export class Game {
 
     // win / lose
     if (this.core.hp <= 0) { this.phase = "lost"; this.message = this.hasCruiser ? "The command cruiser has been destroyed." : "The LZ has been overrun."; }
-    else if (!this.platoons.length && !this.engineers.length) { this.phase = "lost"; this.message = "All units lost. The beachhead falls."; }
+    else if (!this.infantry.length && !this.engineers.length) { this.phase = "lost"; this.message = "All units lost. The beachhead falls."; }
     else if (this.level === 1 && this.t >= WIN_AFTER && this.t - this.lastDeath >= HOLD_NEEDED) { this.phase = "won"; this.message = "The defenses hold. Beachhead secured!"; }
   }
 
@@ -439,7 +477,7 @@ export class Game {
     const towerVision = this.towers.filter((t) => t.built >= 1).map((t) => ({
       x: t.tx + 0.5, y: t.ty + 0.5, range: this.towerRangeAt(t.tx, t.ty),
     }));
-    this.fog.update(this.platoons, this.engineers, towerVision);
+    this.fog.update(this.infantry, this.engineers, towerVision);
   }
 
   holdTime() { return Math.max(0, this.t - Math.max(this.lastDeath, 0)); }
@@ -488,8 +526,8 @@ export class Game {
     for (const e of this.engineers) {
       ctx.fillStyle = C.eng; ctx.beginPath(); ctx.moveTo(e.x * T, e.y * T - 6); ctx.lineTo(e.x * T + 6, e.y * T + 5); ctx.lineTo(e.x * T - 6, e.y * T + 5); ctx.fill();
     }
-    // platoons
-    for (const p of this.platoons) {
+    // infantry teams and squads
+    for (const p of this.infantry) {
       const sel = p.id === this.selected;
       if (sel) {
         ctx.strokeStyle = C.infSel; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(p.x * T, p.y * T); ctx.lineTo(p.tx * T, p.ty * T); ctx.stroke(); ctx.setLineDash([]);
@@ -497,11 +535,11 @@ export class Game {
         ctx.strokeStyle = "rgba(255,211,77,0.35)"; ctx.beginPath(); ctx.arc(p.x * T, p.y * T, (high ? 6.5 : 4.2) * T, 0, 7); ctx.stroke();
       }
       for (let i = 0; i < p.soldiers; i++) {
-        const a = (i / SQUAD) * Math.PI * 2;
+        const a = (i / maxInfantrySoldiers(p)) * Math.PI * 2;
         ctx.fillStyle = sel ? C.infSel : C.inf;
         ctx.beginPath(); ctx.arc(p.x * T + Math.cos(a) * 6, p.y * T + Math.sin(a) * 6, 3, 0, 7); ctx.fill();
       }
-      this.bar(ctx, p.x, p.y - 0.8, p.soldiers / SQUAD, 1);
+      this.bar(ctx, p.x, p.y - 0.8, p.soldiers / maxInfantrySoldiers(p), 1);
     }
     // bugs
     for (const b of this.bugs) {
@@ -525,7 +563,7 @@ export class Game {
       ctx.strokeRect(Math.floor(hover.x) * T, Math.floor(hover.y) * T, T, T);
       ctx.beginPath(); ctx.arc((Math.floor(hover.x) + 0.5) * T, (Math.floor(hover.y) + 0.5) * T, (high ? 7 : 5.5) * T, 0, 7); ctx.stroke();
     }
-    if (hover && mode === "platoon") {
+    if (hover && mode === "infantry") {
       ctx.strokeStyle = "rgba(159,208,255,0.8)"; ctx.beginPath(); ctx.arc(hover.x * T, hover.y * T, 8, 0, 7); ctx.stroke();
     }
   }

@@ -58,7 +58,7 @@ const SFX = {
 // earshot: distance from the closest living friendly
 function hear(g: Game, x: number, y: number) {
   let best = Infinity, lx = 0;
-  for (const p of g.platoons) { const d = Math.hypot(p.x - x, p.y - y); if (d < best) { best = d; lx = p.x; } }
+  for (const p of g.infantry) { const d = Math.hypot(p.x - x, p.y - y); if (d < best) { best = d; lx = p.x; } }
   for (const e of g.engineers) { const d = Math.hypot(e.x - x, e.y - y); if (d < best) { best = d; lx = e.x; } }
   if (best > EAR) return null;
   const f = 1 - best / EAR;
@@ -84,14 +84,14 @@ export function audioTick(g: Game, dt: number) {
     if (g.phase === "playing" && (lastPhase === "landing" || lastPhase === "shipLanding")) SFX.rumble(out(lastPhase === "shipLanding" ? 0.9 : 0.6, 0));
     lastPhase = g.phase;
   }
-  if (g.wave !== lastWave) { lastWave = g.wave; if (g.platoons.length || g.engineers.length) SFX.siren(out(0.8, 0)); }
+  if (g.wave !== lastWave) { lastWave = g.wave; if (g.infantry.length || g.engineers.length) SFX.siren(out(0.8, 0)); }
   for (const s of g.splats) if (!seen.has(s)) { seen.add(s); play(g, s.green ? "squelch" : "scream", s.x, s.y, s.green ? 0.5 : 1); }
   let shots = 0;
   for (const t of g.tracers) if (!seen.has(t)) { seen.add(t); if (shots++ < 4) play(g, t.tower ? "mg" : "rifle", t.x1, t.y1, t.tower ? 0.45 : 0.6); }
   screechCd -= dt;
   if (screechCd <= 0) {
     screechCd = 0.4 + Math.random() * 0.6;
-    const near = g.bugs.filter((b) => g.platoons.some((p) => Math.hypot(p.x - b.x, p.y - b.y) < 4));
+    const near = g.bugs.filter((b) => g.infantry.some((p) => Math.hypot(p.x - b.x, p.y - b.y) < 4));
     if (near.length) { const b = near[Math.floor(Math.random() * near.length)]; play(g, "screech", b.x, b.y, 0.7); }
   }
   weldCd -= dt;

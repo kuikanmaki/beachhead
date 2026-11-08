@@ -4,7 +4,7 @@ import { renderGame, RS } from "@/game/render";
 import { audioTick, unlockAudio, setMuted } from "@/game/sound";
 import { panCamera, resetCamera, screenToWorld, wheelZoom, zoomCamera, type Camera } from "@/game/camera";
 
-type Mode = "select" | "platoon" | "tower";
+type Mode = "select" | "infantry" | "tower";
 
 const freshGame = () => {
   if (typeof window !== "undefined") setMapSize(window.innerWidth / window.innerHeight);
@@ -54,7 +54,7 @@ export function BeachheadGame() {
     raf = requestAnimationFrame(loop);
     const onKey = (e: KeyboardEvent) => {
       unlockAudio();
-      if (e.key === "1") setMode("platoon");
+      if (e.key === "1") setMode("infantry");
       if (e.key === "2") gameRef.current?.trainEngineer();
       if (e.key === "3") setMode("tower");
       if (e.key === "Escape") setMode("select");
@@ -113,7 +113,7 @@ export function BeachheadGame() {
     if (g.phase === "landing") return void g.land(Math.floor(p.x), Math.floor(p.y));
     if (g.phase === "shipLanding") return void g.landCruiser(Math.floor(p.x), Math.floor(p.y));
     if (g.phase !== "playing") return;
-    if (modeRef.current === "platoon") { if (g.dropPlatoon(p.x, p.y) && !e.shiftKey) setMode("select"); }
+    if (modeRef.current === "infantry") { if (g.dropInfantry(p.x, p.y) && !e.shiftKey) setMode("select"); }
     else if (modeRef.current === "tower") {
       if (!satelliteRef.current && g.fog.stateAt(p.x, p.y, false) === 0) {
         g.message = "Unexplored sector. Move ground troops there to scout it.";
@@ -126,8 +126,8 @@ export function BeachheadGame() {
     const g = gameRef.current, p = toWorld(e);
     if (!g) return;
     if (modeRef.current !== "select") return setMode("select");
-    const sel = g.platoons.find((x) => x.id === g.selected);
-    if (sel) g.commandPlatoon(sel, p.x, p.y);
+    const sel = g.infantry.find((x) => x.id === g.selected);
+    if (sel) g.commandInfantry(sel, p.x, p.y);
   };
   const restart = () => { gameRef.current = freshGame(); setMode("select"); resetView(); };
   const continueMission = () => { if (gameRef.current?.continueToCruiser()) setMode("select"); };
@@ -162,7 +162,9 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
   satellite: boolean; toggleSatellite: () => void;
 }) {
   const hold = g.phase === "playing" ? g.holdTime() : 0;
-  const soldiers = g.platoons.reduce((a, p) => a + p.soldiers, 0);
+  const soldiers = g.infantry.reduce((a, p) => a + p.soldiers, 0);
+  const teamCount = g.infantry.filter((p) => p.kind === "team").length;
+  const squadCount = g.infantry.filter((p) => p.kind === "squad").length;
   return (
     <>
       {/* top bar */}
@@ -201,7 +203,8 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
         </div>
         <div className="hud-panel bg-card/80 backdrop-blur-sm">
           <Stat label={g.hasCruiser ? "Command cruiser" : "LZ core"} value={`${Math.max(0, Math.ceil(g.core.hp))}/${g.core.max}`} />
-          <Stat label="Troopers" value={`${soldiers} in ${g.platoons.length} plt`} />
+          <Stat label="Troopers" value={soldiers} />
+          <Stat label="Teams / squads" value={`${teamCount} / ${squadCount}`} />
           <Stat label="Engineers" value={g.engineers.length} />
           <Stat label="Towers" value={`${g.towers.filter((t) => t.built >= 1).length} (+${g.towers.filter((t) => t.built < 1).length})`} />
           <Stat label="Bugs" value={g.bugs.length} />
@@ -224,8 +227,8 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
           </div>
         )}
         <div className="flex flex-col gap-2">
-          <button disabled={g.phase !== "playing"} className={`hud-btn backdrop-blur-sm ${mode === "platoon" ? "hud-btn-active" : "bg-secondary/85"}`} onClick={() => setMode(mode === "platoon" ? "select" : "platoon")}>
-            <span>[1] {g.hasCruiser ? "Deploy platoon" : "Drop platoon"}</span><span>{COST.platoon}</span>
+          <button disabled={g.phase !== "playing"} className={`hud-btn backdrop-blur-sm ${mode === "infantry" ? "hud-btn-active" : "bg-secondary/85"}`} onClick={() => setMode(mode === "infantry" ? "select" : "infantry")}>
+            <span>[1] {g.hasCruiser ? "Drop Squad" : "Drop Team"}</span><span>{g.hasCruiser ? COST.squad : COST.team}</span>
           </button>
           <button disabled={g.phase !== "playing"} className="hud-btn bg-secondary/85 backdrop-blur-sm" onClick={() => g.trainEngineer()}>
             <span>[2] Engineer</span><span>{COST.engineer}</span>
@@ -235,10 +238,10 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
           </button>
         </div>
         <div className="hud-panel mt-auto bg-card/75 text-xs leading-relaxed text-muted-foreground backdrop-blur-sm">
-          <p>Click a platoon to select, then click/right-click to move it.</p>
+          <p>Click a team or squad to select, then click/right-click to move it.</p>
           <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
           <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
-          {g.hasCruiser && <p className="mt-1 text-primary">New platoons and engineers deploy from the cruiser. Click a platoon’s destination to set its rally point.</p>}
+          {g.hasCruiser && <p className="mt-1 text-primary">New squads and engineers deploy from the cruiser. A squad has three 4-person teams plus a leader and moves as one. Click its destination to set the rally point.</p>}
           <p className="mt-1">Scroll to zoom around your cursor. Click and drag to pan while zoomed. Press 0 to reset.</p>
           <p className="mt-1">With satellite comms off, troops and completed MG towers reveal ground. Explored areas stay dim; enemies need current sight.</p>
           <p className="mt-1">You only hear what your troops hear.</p>
@@ -254,7 +257,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
 
       {g.phase === "landing" && (
         <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded-sm border border-primary/40 bg-background/85 px-4 py-2 font-mono text-sm text-primary">
-          {satellite ? "Click open ground to land your first platoon" : "Drop scan online: click open ground in the lit landing area"}
+          {satellite ? "Click open ground to land your first team" : "Drop scan online: click open ground in the lit landing area"}
         </div>
       )}
       {g.phase === "shipLanding" && (

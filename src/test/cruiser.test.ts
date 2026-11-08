@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CRUISER_HP, Game, GROUND, HOLD_NEEDED, ROCK, WIN_AFTER, setMapSize } from "@/game/engine";
+import { CRUISER_HP, Game, GROUND, HOLD_NEEDED, ROCK, SQUAD_SIZE, WIN_AFTER, setMapSize } from "@/game/engine";
 
 function gameWithCruiser() {
   setMapSize(2);
@@ -20,14 +20,14 @@ describe("second-stage command cruiser", () => {
     game.land(16, 16);
     game.towers.push({ id: 90, tx: 20, ty: 20, built: 1, hp: 300, cd: 0 });
     game.credits = 345;
-    const platoons = game.platoons, engineers = game.engineers, towers = game.towers;
+    const infantry = game.infantry, engineers = game.engineers, towers = game.towers;
 
     expect(game.continueToCruiser()).toBe(false);
     game.phase = "won";
     expect(game.continueToCruiser()).toBe(true);
     expect(game.level).toBe(2);
     expect(game.phase).toBe("shipLanding");
-    expect(game.platoons).toBe(platoons);
+    expect(game.infantry).toBe(infantry);
     expect(game.engineers).toBe(engineers);
     expect(game.towers).toBe(towers);
     expect(game.credits).toBe(345);
@@ -36,7 +36,7 @@ describe("second-stage command cruiser", () => {
     expect(game.hasCruiser).toBe(true);
     expect(game.phase).toBe("playing");
     expect(game.core.max).toBe(CRUISER_HP);
-    expect(game.platoons).toBe(platoons);
+    expect(game.infantry).toBe(infantry);
     expect(game.towers).toBe(towers);
   });
 
@@ -56,17 +56,19 @@ describe("second-stage command cruiser", () => {
     expect(game.canLandCruiser(36, 16)).toBe(true);
   });
 
-  it("produces every new platoon and engineer at the cruiser before moving to the rally point", () => {
+  it("produces every new squad and engineer at the cruiser before moving to the rally point", () => {
     const game = gameWithCruiser();
     game.credits = 1000;
 
-    expect(game.dropPlatoon(45.5, 22.5)).toBe(true);
-    const platoon = game.platoons.at(-1)!;
-    expect(platoon.x).toBe(game.core.x);
-    expect(platoon.y).toBe(game.core.y);
-    expect(platoon.tx).toBe(45.5);
-    expect(platoon.ty).toBe(22.5);
-    expect(platoon.path.length).toBeGreaterThan(0);
+    expect(game.dropInfantry(45.5, 22.5)).toBe(true);
+    const squad = game.infantry.at(-1)!;
+    expect(squad.kind).toBe("squad");
+    expect(squad.soldiers).toBe(SQUAD_SIZE);
+    expect(squad.x).toBe(game.core.x);
+    expect(squad.y).toBe(game.core.y);
+    expect(squad.tx).toBe(45.5);
+    expect(squad.ty).toBe(22.5);
+    expect(squad.path.length).toBeGreaterThan(0);
 
     expect(game.trainEngineer()).toBe(true);
     const engineer = game.engineers.at(-1)!;
