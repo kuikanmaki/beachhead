@@ -572,6 +572,21 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   c.globalCompositeOperation = "source-over";
 
   // placement previews
+  if (mode === "wall" && wallDraft) {
+    const plan = g.wallPlan(wallDraft.x1, wallDraft.y1, wallDraft.x2, wallDraft.y2);
+    for (const { tx, ty } of plan.tiles) {
+      const ok = g.canBuildWallAt(tx, ty), col = ok ? "255,190,80" : "255,90,60";
+      c.fillStyle = `rgba(${col},${ok ? 0.28 : 0.18})`; c.fillRect(tx + 0.06, ty + 0.16, 0.88, 0.68);
+      c.strokeStyle = `rgba(${col},0.85)`; c.lineWidth = 0.04; c.strokeRect(tx + 0.06, ty + 0.16, 0.88, 0.68);
+    }
+    c.strokeStyle = "rgba(255,220,150,0.75)"; c.lineWidth = 0.05; c.setLineDash([0.18, 0.12]);
+    c.beginPath(); c.moveTo(wallDraft.x1, wallDraft.y1); c.lineTo(wallDraft.x2, wallDraft.y2); c.stroke(); c.setLineDash([]);
+    c.fillStyle = "#ffd37a"; c.beginPath(); c.arc(wallDraft.x1, wallDraft.y1, 0.13, 0, TAU); c.fill();
+  }
+  if (hover && mode === "wall" && !wallDraft) {
+    c.strokeStyle = "rgba(255,211,122,0.85)"; c.lineWidth = 0.05;
+    c.strokeRect(Math.floor(hover.x) + 0.08, Math.floor(hover.y) + 0.18, 0.84, 0.64);
+  }
   if (hover && mode === "tower") {
     const tx = Math.floor(hover.x), ty = Math.floor(hover.y), known = g.fog.stateAt(hover.x, hover.y, satellite) > 0;
     const ok = known && g.at(tx, ty) !== ROCK, high = known && g.at(tx, ty) === HIGH;
