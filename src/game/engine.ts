@@ -380,20 +380,58 @@ export class Game {
     return true;
   }
 
-  /** Evenly spaced centers stay on the exact drag line; tile coordinates retain perimeter collision. */
+  /** One center per crossed tile, all on the exact line and no more than one wall-width apart. */
   wallLine(x1: number, y1: number, x2: number, y2: number) {
     const dx = x2 - x1, dy = y2 - y1;
     const length = Math.hypot(dx, dy), angle = Math.atan2(dy, dx);
-    const steps = Math.max(1, Math.ceil(length));
-    const tiles: { tx: number; ty: number; x: number; y: number; angle: number }[] = [];
-    for (let i = 0; i <= steps; i++) {
-      const f = i / steps, x = x1 + dx * f, y = y1 + dy * f;
-      const tx = Math.floor(x), ty = Math.floor(y);
-      const last = tiles[tiles.length - 1];
-      // Very short drags can sample one tile twice; never stack two wall units on it.
-      if (!last || last.tx !== tx || last.ty !== ty) tiles.push({ tx, ty, x, y, angle });
+    if (!length) return [{ tx: Math.floor(x1), ty: Math.floor(y1), x: x1, y: y1, angle }];
+
+    // Walk every grid boundary exactly; sampling alone can jump over a clipped corner tile.
+    const spans: { tx: number; ty: number; start: number; end: number }[] = [];
+    let tx = Math.floor(x1), ty = Math.floor(y1), t = 0;
+    const stepX = Math.sign(dx), stepY = Math.sign(dy);
+    const deltaX = dx ? Math.abs(1 / dx) : Infinity, deltaY = dy ? Math.abs(1 / dy) : Infinity;
+    let maxX = dx > 0 ? (tx + 1 - x1) / dx : dx < 0 ? (tx - x1) / dx : Infinity;
+    let maxY = dy > 0 ? (ty + 1 - y1) / dy : dy < 0 ? (ty - y1) / dy : Infinity;
+    spans.push({ tx, ty, start: 0, end: 0 });
+    while (t < 1 && spans.length < 10000) {
+      const next = Math.min(maxX, maxY, 1);
+      spans[spans.length - 1].end = next * length;
+      t = next;
+      if (t >= 1) break;
+      if (maxX < maxY) { tx += stepX; maxX += deltaX; }
+      else if (maxY < maxX) { ty += stepY; maxY += deltaY; }
+      else { tx += stepX; ty += stepY; maxX += deltaX; maxY += deltaY; }
+      spans.push({ tx, ty, start: t * length, end: t * length });
     }
-    return tiles;
+
+    // Choose a point in each tile span with reachable, gap-free spacing. Endpoints stay exact.
+    const epsilon = 0.000001;
+    const reachable: { low: number; high: number }[] = [{ low: 0, high: 0 }];
+    let possible = true;
+    for (let i = 1; i < spans.length; i++) {
+      const previous = reachable[i - 1], span = spans[i];
+      const low = Math.max(span.start, previous.low + epsilon);
+      const high = Math.min(i === spans.length - 1 ? length : span.end, previous.high + 1);
+      if (low > high + epsilon) { possible = false; break; }
+      reachable.push({ low, high });
+    }
+    const positions: number[] = [];
+    if (possible) {
+      positions[spans.length - 1] = length;
+      for (let i = spans.length - 1; i > 0; i--) {
+        const previous = reachable[i - 1], position = positions[i];
+        const low = Math.max(previous.low, position - 1);
+        const high = Math.min(previous.high, position - epsilon);
+        if (low > high + epsilon) { possible = false; break; }
+        positions[i - 1] = i === 1 ? 0 : high;
+      }
+    }
+    return spans.map((span, i) => {
+      const position = possible ? positions[i] : i === 0 ? 0 : i === spans.length - 1 ? length : (span.start + span.end) / 2;
+      const f = position / length;
+      return { tx: span.tx, ty: span.ty, x: x1 + dx * f, y: y1 + dy * f, angle };
+    });
   }
 
   canBuildWallAt(tx: number, ty: number) {
