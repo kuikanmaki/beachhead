@@ -66,4 +66,20 @@ describe("infantry organisation", () => {
     expect(game.selected).toBe(squad.id);
     expect(game.infantry.filter((unit) => unit.id === squad.id)).toHaveLength(1);
   });
+
+  it("fires all three squad teams together at one nearby target", () => {
+    const game = cruiserGame();
+    game.credits = 1000;
+    game.dropSquad(game.core.x, game.core.y);
+    game.spawns = [];
+    game.nextHorde = 1000;
+    const squad = game.infantry.at(-1)!;
+    game.bugs.push({ x: squad.x + 2, y: squad.y, hp: 1000, max: 1000, speed: 0, dmg: 0, r: 0.32, kind: 0, bounty: 3 });
+
+    game.update(0.01);
+
+    expect(game.bugs[0]!.hp).toBeCloseTo(1000 - 6 * 13);
+    expect(squad.cd).toBeGreaterThan(0);
+    expect(game.tracers.filter((tracer) => !tracer.tower)).toHaveLength(3);
+  });
 });
