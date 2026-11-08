@@ -81,7 +81,7 @@ export function audioTick(g: Game, dt: number) {
   }
   budget = 8;
   if (g.phase !== lastPhase) {
-    if (g.phase === "playing" && lastPhase === "landing") SFX.rumble(out(0.6, 0));
+    if (g.phase === "playing" && (lastPhase === "landing" || lastPhase === "shipLanding")) SFX.rumble(out(lastPhase === "shipLanding" ? 0.9 : 0.6, 0));
     lastPhase = g.phase;
   }
   if (g.wave !== lastWave) { lastWave = g.wave; if (g.platoons.length || g.engineers.length) SFX.siren(out(0.8, 0)); }

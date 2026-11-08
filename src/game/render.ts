@@ -273,6 +273,51 @@ function core(c: CanvasRenderingContext2D, g: Game, now: number) {
   bar(c, x, y - 1.25, g.core.hp / g.core.max, 1.8);
 }
 
+function cruiser(c: CanvasRenderingContext2D, g: Game, now: number) {
+  const { x, y } = g.core;
+  // Broad armored landing pad and deployed stabilizers make the second-stage ship unmistakable.
+  shadow(c, x, y, 2.9, 2.35, 0.45);
+  c.fillStyle = "#3d4242"; poly(c, x, y, 3.15, 8, Math.PI / 8); c.fill();
+  c.strokeStyle = "#202525"; c.lineWidth = 0.1; c.stroke();
+  c.strokeStyle = "rgba(255,190,60,0.8)"; c.lineWidth = 0.06; c.setLineDash([0.28, 0.18]);
+  poly(c, x, y, 2.9, 8, Math.PI / 8); c.stroke(); c.setLineDash([]);
+  for (const side of [-1, 1]) for (const end of [-1, 1]) {
+    c.strokeStyle = "#282e2e"; c.lineWidth = 0.22;
+    c.beginPath(); c.moveTo(x + end * 1.25, y + side * 0.8); c.lineTo(x + end * 2.15, y + side * 1.55); c.stroke();
+    c.fillStyle = "#59615d"; c.beginPath(); c.ellipse(x + end * 2.15, y + side * 1.55, 0.48, 0.25, 0, 0, TAU); c.fill();
+  }
+  // Swept hull, armored wings, and a raised command deck.
+  const hull = c.createLinearGradient(x - 2.2, y - 1.5, x + 2.2, y + 1.5);
+  hull.addColorStop(0, "#a4ada6"); hull.addColorStop(0.45, "#68736d"); hull.addColorStop(1, "#303936");
+  c.fillStyle = hull; c.beginPath();
+  c.moveTo(x + 2.35, y); c.lineTo(x + 1.15, y - 0.7); c.lineTo(x - 0.2, y - 1.65);
+  c.lineTo(x - 1.85, y - 1.25); c.lineTo(x - 2.15, y - 0.55); c.lineTo(x - 2.15, y + 0.55);
+  c.lineTo(x - 1.85, y + 1.25); c.lineTo(x - 0.2, y + 1.65); c.lineTo(x + 1.15, y + 0.7); c.closePath(); c.fill();
+  c.strokeStyle = "rgba(10,18,17,0.75)"; c.lineWidth = 0.07; c.stroke();
+  c.fillStyle = "#424d49";
+  c.beginPath(); c.moveTo(x + 0.8, y - 0.65); c.lineTo(x - 1.3, y - 1.15); c.lineTo(x - 0.8, y - 0.45); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(x + 0.8, y + 0.65); c.lineTo(x - 1.3, y + 1.15); c.lineTo(x - 0.8, y + 0.45); c.closePath(); c.fill();
+  // Central deployment ramp and hull paneling.
+  c.fillStyle = "#242d2b"; c.beginPath(); c.roundRect(x - 1.1, y - 0.48, 2.35, 0.96, 0.12); c.fill();
+  c.strokeStyle = "#7d8981"; c.lineWidth = 0.035;
+  for (let k = 0; k < 5; k++) { c.beginPath(); c.moveTo(x - 0.9 + k * 0.43, y - 0.42); c.lineTo(x - 0.9 + k * 0.43, y + 0.42); c.stroke(); }
+  c.fillStyle = "#18211f"; c.beginPath(); c.roundRect(x + 1.0, y - 0.32, 0.72, 0.64, 0.12); c.fill();
+  c.fillStyle = "#8fb4ae"; c.fillRect(x + 1.42, y - 0.22, 0.16, 0.44);
+  c.fillStyle = "#e0b94e"; c.fillRect(x - 1.72, y - 0.12, 0.45, 0.24);
+  // Idling engines and navigation lights.
+  c.globalCompositeOperation = "lighter";
+  for (const side of [-1, 1]) {
+    const eg = c.createRadialGradient(x - 2.15, y + side * 0.65, 0, x - 2.15, y + side * 0.65, 0.62);
+    eg.addColorStop(0, "rgba(150,220,255,0.8)"); eg.addColorStop(1, "rgba(60,130,255,0)");
+    c.fillStyle = eg; c.beginPath(); c.arc(x - 2.15, y + side * 0.65, 0.62, 0, TAU); c.fill();
+    const on = Math.sin(now * 5 + side) > 0;
+    c.fillStyle = side > 0 ? `rgba(90,255,150,${on ? 1 : 0.25})` : `rgba(255,80,55,${on ? 1 : 0.25})`;
+    c.beginPath(); c.arc(x - 0.2, y + side * 1.55, 0.09, 0, TAU); c.fill();
+  }
+  c.globalCompositeOperation = "source-over";
+  bar(c, x, y - 2.35, g.core.hp / g.core.max, 3.8);
+}
+
 function tower(c: CanvasRenderingContext2D, g: Game, t: any, now: number, dt: number, firing: boolean) {
   const x = t.tx + 0.5, y = t.ty + 0.5, s = get(t, -Math.PI / 2);
   if (t.built < 1) {
@@ -383,6 +428,16 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     return;
   }
 
+  if (g.phase === "shipLanding" && hover) {
+    const tx = Math.floor(hover.x), ty = Math.floor(hover.y), hx = tx + 0.5, hy = ty + 0.5;
+    const ok = g.canLandCruiser(tx, ty), pulse = 0.5 + Math.sin(now * 5) * 0.5;
+    const col = ok ? "95,211,160" : "255,90,60";
+    c.fillStyle = `rgba(${col},0.1)`; c.fillRect(tx - 3, ty - 3, 7, 7);
+    c.strokeStyle = `rgba(${col},${0.55 + pulse * 0.45})`; c.lineWidth = 0.09; c.strokeRect(tx - 3, ty - 3, 7, 7);
+    c.fillStyle = `rgba(${col},0.22)`; poly(c, hx, hy, 2.65, 8, Math.PI / 8); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(hx - 1.2, hy); c.lineTo(hx + 1.2, hy); c.moveTo(hx, hy - 1.2); c.lineTo(hx, hy + 1.2); c.stroke();
+  }
+
   // firing state from tracers
   const towerFire = new Set<string>();
   let parts = particles.get(g); if (!parts) particles.set(g, (parts = []));
@@ -397,7 +452,7 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     }
   }
 
-  core(c, g, now);
+  if (g.hasCruiser) cruiser(c, g, now); else core(c, g, now);
   for (const t of g.towers) tower(c, g, t, now, dt, towerFire.has(`${t.tx + 0.5},${t.ty + 0.5}`));
 
   // bugs: satellite sees everything; otherwise only current troop vision reveals contacts.

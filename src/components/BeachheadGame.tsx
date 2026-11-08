@@ -111,6 +111,7 @@ export function BeachheadGame() {
     const g = gameRef.current, p = toWorld(e);
     if (!g) return;
     if (g.phase === "landing") return void g.land(Math.floor(p.x), Math.floor(p.y));
+    if (g.phase === "shipLanding") return void g.landCruiser(Math.floor(p.x), Math.floor(p.y));
     if (g.phase !== "playing") return;
     if (modeRef.current === "platoon") { if (g.dropPlatoon(p.x, p.y) && !e.shiftKey) setMode("select"); }
     else if (modeRef.current === "tower") {
@@ -129,6 +130,7 @@ export function BeachheadGame() {
     if (sel) g.commandPlatoon(sel, p.x, p.y);
   };
   const restart = () => { gameRef.current = freshGame(); setMode("select"); resetView(); };
+  const continueMission = () => { if (gameRef.current?.continueToCruiser()) setMode("select"); };
 
   const g = gameRef.current;
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -149,13 +151,13 @@ export function BeachheadGame() {
         onMouseMove={(e) => (hoverRef.current = toWorld(e))}
         onMouseLeave={() => (hoverRef.current = null)}
       />
-      {g && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} zoom={zoom} applyZoom={applyZoom} resetView={resetView} satellite={satellite} toggleSatellite={toggleSatellite} />}
+      {g && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} continueMission={continueMission} zoom={zoom} applyZoom={applyZoom} resetView={resetView} satellite={satellite} toggleSatellite={toggleSatellite} />}
     </div>
   );
 }
 
-function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom, resetView, satellite, toggleSatellite }: {
-  g: Game; mode: Mode; setMode: (m: Mode) => void; mute: boolean; toggleMute: () => void; fmt: (s: number) => string; restart: () => void;
+function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission, zoom, applyZoom, resetView, satellite, toggleSatellite }: {
+  g: Game; mode: Mode; setMode: (m: Mode) => void; mute: boolean; toggleMute: () => void; fmt: (s: number) => string; restart: () => void; continueMission: () => void;
   zoom: number; applyZoom: (next: number) => void; resetView: () => void;
   satellite: boolean; toggleSatellite: () => void;
 }) {
@@ -171,6 +173,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
         </div>
         <p className="mt-2 max-w-md text-center font-mono text-sm text-foreground/90">{g.message}</p>
         <div className="pointer-events-auto flex gap-4 font-mono text-sm">
+          <TopStat label="Level" value={g.level === 1 ? "1 · LZ" : "2 · Ship"} />
           <TopStat label="Credits" value={Math.floor(g.credits)} accent />
           <TopStat label="Time" value={fmt(g.t)} />
           <TopStat label="Horde" value={g.phase === "playing" ? `${g.wave} · ${Math.max(0, Math.ceil(g.nextHorde - g.t))}s` : "—"} />
@@ -197,30 +200,37 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
           </button>
         </div>
         <div className="hud-panel bg-card/80 backdrop-blur-sm">
-          <Stat label="LZ core" value={`${Math.max(0, Math.ceil(g.core.hp))}/${g.core.max}`} />
+          <Stat label={g.hasCruiser ? "Command cruiser" : "LZ core"} value={`${Math.max(0, Math.ceil(g.core.hp))}/${g.core.max}`} />
           <Stat label="Troopers" value={`${soldiers} in ${g.platoons.length} plt`} />
           <Stat label="Engineers" value={g.engineers.length} />
           <Stat label="Towers" value={`${g.towers.filter((t) => t.built >= 1).length} (+${g.towers.filter((t) => t.built < 1).length})`} />
           <Stat label="Bugs" value={g.bugs.length} />
         </div>
-        <div className="hud-panel bg-card/80 backdrop-blur-sm">
-          <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">Hold the line</p>
-          <div className="h-2 w-full overflow-hidden rounded-sm bg-muted">
-            <div className="h-full bg-success transition-all" style={{ width: `${Math.min(100, (hold / HOLD_NEEDED) * 100)}%` }} />
+        {g.level === 1 ? (
+          <div className="hud-panel bg-card/80 backdrop-blur-sm">
+            <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">Hold the line</p>
+            <div className="h-2 w-full overflow-hidden rounded-sm bg-muted">
+              <div className="h-full bg-success transition-all" style={{ width: `${Math.min(100, (hold / HOLD_NEEDED) * 100)}%` }} />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {fmt(hold)} / {fmt(HOLD_NEEDED)} without casualties
+              {g.t < WIN_AFTER && g.phase === "playing" ? ` · eligible at ${fmt(WIN_AFTER)}` : ""}
+            </p>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {fmt(hold)} / {fmt(HOLD_NEEDED)} without casualties
-            {g.t < WIN_AFTER && g.phase === "playing" ? ` · eligible at ${fmt(WIN_AFTER)}` : ""}
-          </p>
-        </div>
+        ) : (
+          <div className="hud-panel bg-card/80 backdrop-blur-sm">
+            <p className="text-xs uppercase tracking-widest text-primary">Endless defense</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Larger, tougher hordes every 40 seconds. Hold the cruiser as long as you can.</p>
+          </div>
+        )}
         <div className="flex flex-col gap-2">
-          <button className={`hud-btn backdrop-blur-sm ${mode === "platoon" ? "hud-btn-active" : "bg-secondary/85"}`} onClick={() => setMode(mode === "platoon" ? "select" : "platoon")}>
-            <span>[1] Drop platoon</span><span>{COST.platoon}</span>
+          <button disabled={g.phase !== "playing"} className={`hud-btn backdrop-blur-sm ${mode === "platoon" ? "hud-btn-active" : "bg-secondary/85"}`} onClick={() => setMode(mode === "platoon" ? "select" : "platoon")}>
+            <span>[1] {g.hasCruiser ? "Deploy platoon" : "Drop platoon"}</span><span>{COST.platoon}</span>
           </button>
-          <button className="hud-btn bg-secondary/85 backdrop-blur-sm" onClick={() => g.trainEngineer()}>
+          <button disabled={g.phase !== "playing"} className="hud-btn bg-secondary/85 backdrop-blur-sm" onClick={() => g.trainEngineer()}>
             <span>[2] Engineer</span><span>{COST.engineer}</span>
           </button>
-          <button className={`hud-btn backdrop-blur-sm ${mode === "tower" ? "hud-btn-active" : "bg-secondary/85"}`} onClick={() => setMode(mode === "tower" ? "select" : "tower")}>
+          <button disabled={g.phase !== "playing"} className={`hud-btn backdrop-blur-sm ${mode === "tower" ? "hud-btn-active" : "bg-secondary/85"}`} onClick={() => setMode(mode === "tower" ? "select" : "tower")}>
             <span>[3] MG tower</span><span>{COST.tower}</span>
           </button>
         </div>
@@ -228,6 +238,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
           <p>Click a platoon to select, then click/right-click to move it.</p>
           <p className="mt-1"><span className="text-primary">Light tan</span> = high ground: longer range, less damage taken, slows bugs.</p>
           <p className="mt-1">Engineers auto-build marked towers. Shift-click to place several.</p>
+          {g.hasCruiser && <p className="mt-1 text-primary">New platoons and engineers deploy from the cruiser. Click a platoon’s destination to set its rally point.</p>}
           <p className="mt-1">Scroll to zoom around your cursor. Click and drag to pan while zoomed. Press 0 to reset.</p>
           <p className="mt-1">With satellite comms off, troops and completed MG towers reveal ground. Explored areas stay dim; enemies need current sight.</p>
           <p className="mt-1">You only hear what your troops hear.</p>
@@ -246,6 +257,12 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
           {satellite ? "Click open ground to land your first platoon" : "Drop scan online: click open ground in the lit landing area"}
         </div>
       )}
+      {g.phase === "shipLanding" && (
+        <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded-sm border border-primary/40 bg-background/85 px-4 py-2 text-center font-mono text-sm text-primary">
+          Level 2 · Click a clear 7×7 sector to land the command cruiser
+          <span className="mt-1 block text-xs text-muted-foreground">Survivors and defenses carry over · the battle resumes on touchdown</span>
+        </div>
+      )}
       {(g.phase === "won" || g.phase === "lost") && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-background/75">
           <h2 className={`font-display text-6xl uppercase ${g.phase === "won" ? "text-success" : "text-destructive"}`}>
@@ -254,7 +271,11 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, zoom, applyZoom
           <p className="font-mono text-sm text-muted-foreground">
             Survived {fmt(g.t)} · {g.kills} bugs killed · {g.deaths} troopers lost
           </p>
-          <button onClick={restart} className="hud-btn hud-btn-primary">New drop</button>
+          {g.phase === "won" && <p className="max-w-md text-center font-mono text-sm text-foreground">Level 1 complete. Bring in a command cruiser, relocate your base, and face escalating endless hordes.</p>}
+          <div className="flex gap-2">
+            {g.phase === "won" && <button onClick={continueMission} className="hud-btn hud-btn-primary">Continue to Level 2</button>}
+            <button onClick={restart} className={`hud-btn ${g.phase === "lost" ? "hud-btn-primary" : ""}`}>New drop</button>
+          </div>
         </div>
       )}
     </>
