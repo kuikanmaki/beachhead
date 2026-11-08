@@ -24,7 +24,7 @@ export type InfantryKind = "team" | "squad";
 export type Infantry = { id: number; kind: InfantryKind; fireTeams: number; x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[]; soldiers: number; hp: number; cd: number };
 export type Engineer = { id: number; kind: "engineer" | "team"; members: number; x: number; y: number; hp: number; job: number | null };
 type Tower = { id: number; tx: number; ty: number; built: number; hp: number; cd: number };
-export type WallSegment = { id: number; jobId: number; tx: number; ty: number; built: number; paid: boolean };
+export type WallSegment = { id: number; jobId: number; tx: number; ty: number; x: number; y: number; angle: number; built: number; paid: boolean };
 export type WallJob = { id: number; engineerId: number | null; wallIds: number[] };
 export type PerimeterStatus = { sealed: boolean; enemiesInside: number };
 type Tracer = { x1: number; y1: number; x2: number; y2: number; life: number; tower: boolean };
@@ -347,21 +347,18 @@ export class Game {
     return true;
   }
 
-  /** A four-connected raster line prevents diagonal gaps in a defensive perimeter. */
+  /** Evenly spaced centers stay on the exact drag line; tile coordinates retain perimeter collision. */
   wallLine(x1: number, y1: number, x2: number, y2: number) {
-    let x = Math.floor(x1), y = Math.floor(y1);
-    const endX = Math.floor(x2), endY = Math.floor(y2);
-    const dx = Math.abs(endX - x), sx = Math.sign(endX - x);
-    const dy = -Math.abs(endY - y), sy = Math.sign(endY - y);
-    let err = dx + dy;
-    const tiles: { tx: number; ty: number }[] = [{ tx: x, ty: y }];
-    while (x !== endX || y !== endY) {
-      const e2 = 2 * err, moveX = e2 >= dy, moveY = e2 <= dx;
-      if (moveX && moveY && sx && sy) tiles.push({ tx: x + sx, ty: y });
-      if (moveX) { err += dy; x += sx; }
-      if (moveY) { err += dx; y += sy; }
+    const dx = x2 - x1, dy = y2 - y1;
+    const length = Math.hypot(dx, dy), angle = Math.atan2(dy, dx);
+    const steps = Math.max(1, Math.ceil(length));
+    const tiles: { tx: number; ty: number; x: number; y: number; angle: number }[] = [];
+    for (let i = 0; i <= steps; i++) {
+      const f = i / steps, x = x1 + dx * f, y = y1 + dy * f;
+      const tx = Math.floor(x), ty = Math.floor(y);
       const last = tiles[tiles.length - 1];
-      if (!last || last.tx !== x || last.ty !== y) tiles.push({ tx: x, ty: y });
+      // Very short drags can sample one tile twice; never stack two wall units on it.
+      if (!last || last.tx !== tx || last.ty !== ty) tiles.push({ tx, ty, x, y, angle });
     }
     return tiles;
   }
@@ -410,8 +407,8 @@ export class Game {
     if (!plan.buildable.length) return (this.message = "No clear wall sites along that line. Rock and existing structures are skipped."), false;
     const jobId = this.nid++;
     const job: WallJob = { id: jobId, engineerId: null, wallIds: [] };
-    for (const { tx, ty } of plan.buildable) {
-      const segment: WallSegment = { id: this.nid++, jobId, tx, ty, built: 0, paid: false };
+    for (const { tx, ty, x, y, angle } of plan.buildable) {
+      const segment: WallSegment = { id: this.nid++, jobId, tx, ty, x, y, angle, built: 0, paid: false };
       this.walls.push(segment); job.wallIds.push(segment.id);
     }
     this.wallJobs.push(job); this.assignWallJob(job);
@@ -568,8 +565,8 @@ export class Game {
         any.sort((a, b) => Math.hypot(a.tx - e.x, a.ty - e.y) - Math.hypot(b.tx - e.x, b.ty - e.y));
         job = any[0]; if (job) e.job = job.id;
       }
-      const gx = segment ? segment.tx + 0.5 : job ? job.tx + 0.5 : this.core.x - 1;
-      const gy = segment ? segment.ty + 0.5 : job ? job.ty + 1.2 : this.core.y + 0.8;
+      const gx = segment ? segment.x : job ? job.tx + 0.5 : this.core.x - 1;
+      const gy = segment ? segment.y : job ? job.ty + 1.2 : this.core.y + 0.8;
       const dx = gx - e.x, dy = gy - e.y, d = Math.hypot(dx, dy);
       if (d > 0.15) { e.x += (dx / d) * Math.min(d, 2.6 * dt); e.y += (dy / d) * Math.min(d, 2.6 * dt); }
       else if (segment) {

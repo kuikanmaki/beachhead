@@ -1,5 +1,7 @@
 # Current update
 
+- [x] Align every wall segment with the drawn line and keep all centers on that straight line.
+- [x] Verify angled placement, sequential construction, perimeter blocking, and the live preview.
 - [x] Start Level 2 with no enemies and a 12-second setup window.
 - [x] Send early scouts and the first horde at 25 seconds, then escalate attacks.
 - [x] Verify defended walls remain achievable with casualties and undefended cruisers fall.

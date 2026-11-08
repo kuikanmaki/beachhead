@@ -319,7 +319,12 @@ function cruiser(c: CanvasRenderingContext2D, g: Game, now: number) {
 }
 
 function wall(c: CanvasRenderingContext2D, w: any, now: number) {
-  const x = w.tx, y = w.ty;
+  const cx = w.x ?? w.tx + 0.5, cy = w.y ?? w.ty + 0.5;
+  c.save();
+  c.translate(cx, cy);
+  c.rotate(w.angle ?? 0);
+  // Draw in local tile coordinates so every part of the segment follows the drag angle.
+  const x = -0.5, y = -0.5;
   if (w.built < 1) {
     c.fillStyle = w.paid ? "rgba(255,179,71,0.18)" : "rgba(120,130,130,0.12)";
     c.fillRect(x + 0.06, y + 0.16, 0.88, 0.68);
@@ -327,26 +332,28 @@ function wall(c: CanvasRenderingContext2D, w: any, now: number) {
     c.setLineDash([0.12, 0.09]); c.strokeRect(x + 0.06, y + 0.16, 0.88, 0.68); c.setLineDash([]);
     if (w.paid) {
       c.strokeStyle = "#ffd37a"; c.lineWidth = 0.065;
-      c.beginPath(); c.arc(x + 0.5, y + 0.5, 0.31, -Math.PI / 2, -Math.PI / 2 + TAU * w.built); c.stroke();
+      c.beginPath(); c.arc(0, 0, 0.31, -Math.PI / 2, -Math.PI / 2 + TAU * w.built); c.stroke();
     }
+    c.restore();
     return;
   }
-  shadow(c, x + 0.5, y + 0.58, 0.53, 0.4, 0.5);
-  const armor = c.createLinearGradient(x, y, x, y + 1);
+  shadow(c, 0, 0.08, 0.53, 0.4, 0.5);
+  const armor = c.createLinearGradient(0, y, 0, y + 1);
   armor.addColorStop(0, "#9aa29a"); armor.addColorStop(0.35, "#626c65"); armor.addColorStop(1, "#303934");
   c.fillStyle = armor; c.fillRect(x, y + 0.12, 1, 0.76);
   c.fillStyle = "#b6bdb2"; c.fillRect(x, y + 0.12, 1, 0.09);
   c.fillStyle = "#252d29"; c.fillRect(x, y + 0.78, 1, 0.1);
   c.strokeStyle = "rgba(15,20,17,0.75)"; c.lineWidth = 0.035;
   c.strokeRect(x + 0.02, y + 0.14, 0.96, 0.72);
-  c.beginPath(); c.moveTo(x + 0.5, y + 0.2); c.lineTo(x + 0.5, y + 0.8); c.stroke();
+  c.beginPath(); c.moveTo(0, y + 0.2); c.lineTo(0, y + 0.8); c.stroke();
   c.fillStyle = "#d2a849";
   for (const offset of [0.12, 0.62]) {
     c.beginPath(); c.moveTo(x + offset, y + 0.25); c.lineTo(x + offset + 0.16, y + 0.25);
     c.lineTo(x + offset + 0.04, y + 0.39); c.lineTo(x + offset - 0.12, y + 0.39); c.closePath(); c.fill();
   }
-  const pulse = 0.45 + Math.sin(now * 2 + x * 0.7 + y) * 0.15;
+  const pulse = 0.45 + Math.sin(now * 2 + cx * 0.7 + cy) * 0.15;
   c.fillStyle = `rgba(120,220,180,${pulse})`; c.fillRect(x + 0.43, y + 0.07, 0.14, 0.05);
+  c.restore();
 }
 
 function tower(c: CanvasRenderingContext2D, g: Game, t: any, now: number, dt: number, firing: boolean) {
@@ -538,7 +545,7 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     const job = g.towers.find((t) => t.id === e.job && t.built < 1);
     const wallJob = g.activeWallJob(e.id), segment = wallJob ? g.nextWallSegment(wallJob) : undefined;
     if (moving) s.ang = turn(s.ang, Math.atan2(my, mx), dt * 8);
-    else if (segment) s.ang = turn(s.ang, Math.atan2(segment.ty + 0.5 - e.y, segment.tx + 0.5 - e.x), dt * 8);
+    else if (segment) s.ang = turn(s.ang, Math.atan2(segment.y - e.y, segment.x - e.x), dt * 8);
     else if (job) s.ang = turn(s.ang, Math.atan2(job.ty + 0.5 - e.y, job.tx + 0.5 - e.x), dt * 8);
     s.px = e.x; s.py = e.y;
     if (sel) {
@@ -579,10 +586,12 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   // placement previews
   if (mode === "wall" && wallDraft) {
     const plan = g.wallPlan(wallDraft.x1, wallDraft.y1, wallDraft.x2, wallDraft.y2);
-    for (const { tx, ty } of plan.tiles) {
+    for (const { tx, ty, x, y, angle } of plan.tiles) {
       const ok = g.canBuildWallAt(tx, ty), col = ok ? "255,190,80" : "255,90,60";
-      c.fillStyle = `rgba(${col},${ok ? 0.28 : 0.18})`; c.fillRect(tx + 0.06, ty + 0.16, 0.88, 0.68);
-      c.strokeStyle = `rgba(${col},0.85)`; c.lineWidth = 0.04; c.strokeRect(tx + 0.06, ty + 0.16, 0.88, 0.68);
+      c.save(); c.translate(x, y); c.rotate(angle);
+      c.fillStyle = `rgba(${col},${ok ? 0.28 : 0.18})`; c.fillRect(-0.44, -0.34, 0.88, 0.68);
+      c.strokeStyle = `rgba(${col},0.85)`; c.lineWidth = 0.04; c.strokeRect(-0.44, -0.34, 0.88, 0.68);
+      c.restore();
     }
     c.strokeStyle = "rgba(255,220,150,0.75)"; c.lineWidth = 0.05; c.setLineDash([0.18, 0.12]);
     c.beginPath(); c.moveTo(wallDraft.x1, wallDraft.y1); c.lineTo(wallDraft.x2, wallDraft.y2); c.stroke(); c.setLineDash([]);
