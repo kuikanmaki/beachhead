@@ -40,7 +40,7 @@ describe("second-stage command cruiser", () => {
     expect(game.towers).toBe(towers);
   });
 
-  it("requires a clear 7×7 landing sector", () => {
+  it("requires a rock-free 7×7 landing sector", () => {
     setMapSize(2);
     const game = new Game(22);
     game.map.fill(GROUND);
@@ -54,6 +54,59 @@ describe("second-stage command cruiser", () => {
     expect(game.phase).toBe("shipLanding");
     game.map[16 * 64 + 36] = GROUND;
     expect(game.canLandCruiser(36, 16)).toBe(true);
+  });
+
+  it("lands over the original ship without removing surviving troops", () => {
+    setMapSize(2);
+    const game = new Game(22);
+    game.map.fill(GROUND);
+    game.land(16, 16);
+    const oldShip = game.core;
+    const infantry = game.infantry, engineers = game.engineers;
+    game.phase = "won";
+    game.continueToCruiser();
+    expect(game.landCruiser(16, 16)).toBe(true);
+    expect(game.core).not.toBe(oldShip);
+    expect(game.core).toEqual({ x: 16.5, y: 16.5, hp: CRUISER_HP, max: CRUISER_HP });
+    expect(game.infantry).toBe(infantry);
+    expect(game.engineers).toBe(engineers);
+  });
+
+  it("deletes covered installations and construction jobs but preserves those outside the footprint", () => {
+    setMapSize(2);
+    const game = new Game(22);
+    game.map.fill(GROUND);
+    game.land(16, 16);
+    game.towers.push(
+      { id: 90, tx: 33, ty: 13, built: 1, hp: 300, cd: 0 },
+      { id: 91, tx: 39, ty: 19, built: 0.5, hp: 300, cd: 0 },
+      { id: 92, tx: 40, ty: 19, built: 1, hp: 300, cd: 0 },
+    );
+    game.walls.push(
+      { id: 93, jobId: 95, tx: 36, ty: 16, x: 36.5, y: 16.5, angle: 0, built: 1, paid: true },
+      { id: 94, jobId: 96, tx: 32, ty: 16, x: 32.5, y: 16.5, angle: 0, built: 1, paid: true },
+    );
+    game.wallGrid[16 * 64 + 36] = 1;
+    game.wallGrid[16 * 64 + 32] = 1;
+    game.wallJobs.push(
+      { id: 95, engineerId: null, wallIds: [93] },
+      { id: 96, engineerId: null, wallIds: [93, 94] },
+    );
+    const engineer = game.engineers[0];
+    if (!engineer) throw new Error("Missing starting engineer");
+    engineer.job = 91;
+    const credits = game.credits;
+    game.phase = "won";
+    game.continueToCruiser();
+    expect(game.canLandCruiser(36, 16)).toBe(true);
+    expect(game.landCruiser(36, 16)).toBe(true);
+    expect(game.towers.map((tower) => tower.id)).toEqual([92]);
+    expect(game.walls.map((wall) => wall.id)).toEqual([94]);
+    expect(game.wallGrid[16 * 64 + 36]).toBe(0);
+    expect(game.wallGrid[16 * 64 + 32]).toBe(1);
+    expect(game.wallJobs).toEqual([{ id: 96, engineerId: null, wallIds: [94] }]);
+    expect(engineer.job).toBe(null);
+    expect(game.credits).toBe(credits);
   });
 
   it("produces every new squad and engineer at the cruiser before moving to the rally point", () => {

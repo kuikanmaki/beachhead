@@ -14,7 +14,7 @@ export const WALL_BUILD_TIME = 0.75;
 export const ENGINEER_TEAM_SIZE = 4;
 export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
-export const CRUISER_RADIUS = 3; // clear 7×7-tile landing footprint
+export const CRUISER_RADIUS = 3; // 7×7-tile landing footprint
 export const CRUISER_HP = 1400;
 export const LEVEL_TWO_GRACE = 6;
 export const LEVEL_TWO_FIRST_HORDE = 18;
@@ -201,14 +201,14 @@ export class Game {
     this.wave = 0;
     this.spawnAcc = 0;
     this.selected = null;
-    this.message = "Level 2: choose a clear 7×7 sector for the command cruiser.";
+    this.message = "Level 2: choose a rock-free 7×7 sector. Installations beneath the cruiser will be removed.";
     return true;
   }
 
   canLandCruiser(tx: number, ty: number) {
     if (tx - CRUISER_RADIUS < 0 || ty - CRUISER_RADIUS < 0 || tx + CRUISER_RADIUS >= W || ty + CRUISER_RADIUS >= H) return false;
     for (let y = ty - CRUISER_RADIUS; y <= ty + CRUISER_RADIUS; y++) for (let x = tx - CRUISER_RADIUS; x <= tx + CRUISER_RADIUS; x++) {
-      if (this.at(x, y) === ROCK || this.towers.some((t) => t.tx === x && t.ty === y) || this.wallAt(x, y)) return false;
+      if (this.at(x, y) === ROCK) return false;
     }
     return true;
   }
@@ -216,8 +216,28 @@ export class Game {
   landCruiser(tx: number, ty: number) {
     if (this.phase !== "shipLanding") return false;
     if (!this.canLandCruiser(tx, ty)) {
-      this.message = "The cruiser needs a clear 7×7 sector without rock or towers.";
+      this.message = "The cruiser needs a rock-free 7×7 sector within the map.";
       return false;
+    }
+    const covered = (x: number, y: number) => Math.abs(x - tx) <= CRUISER_RADIUS && Math.abs(y - ty) <= CRUISER_RADIUS;
+    for (let i = this.towers.length - 1; i >= 0; i--) {
+      const tower = this.towers[i];
+      if (covered(tower.tx, tower.ty)) this.towers.splice(i, 1);
+    }
+    for (let i = this.walls.length - 1; i >= 0; i--) {
+      const wall = this.walls[i];
+      if (covered(wall.tx, wall.ty)) {
+        this.wallGrid[wall.ty * W + wall.tx] = 0;
+        this.walls.splice(i, 1);
+      }
+    }
+    for (let i = this.wallJobs.length - 1; i >= 0; i--) {
+      const job = this.wallJobs[i];
+      job.wallIds = job.wallIds.filter((id) => this.walls.some((wall) => wall.id === id));
+      if (!job.wallIds.length) this.wallJobs.splice(i, 1);
+    }
+    for (const engineer of this.engineers) {
+      if (engineer.job !== null && !this.towers.some((tower) => tower.id === engineer.job)) engineer.job = null;
     }
     for (let y = ty - CRUISER_RADIUS; y <= ty + CRUISER_RADIUS; y++) for (let x = tx - CRUISER_RADIUS; x <= tx + CRUISER_RADIUS; x++) {
       this.map[y * W + x] = GROUND;
