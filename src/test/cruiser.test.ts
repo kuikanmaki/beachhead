@@ -122,21 +122,21 @@ describe("second-stage command cruiser", () => {
     expect(game.bugs).toHaveLength(0);
     expect(game.wave).toBe(0);
     expect(game.spawnAcc).toBe(0);
-    expect(game.nextHorde - game.t).toBe(45);
+    expect(game.nextHorde - game.t).toBe(25);
   });
 
   it("allows 12 enemy-free seconds, then sends scouts before the first horde", () => {
     const game = gameWithCruiser();
     game.t = 1000;
     game.levelStartedAt = 1000;
-    game.nextHorde = 1045;
+    game.nextHorde = 1025;
     for (let i = 0; i < 120; i++) game.update(0.1);
     expect(game.bugs).toHaveLength(0);
     expect(game.wave).toBe(0);
-    for (let i = 0; i < 180; i++) game.update(0.1);
+    for (let i = 0; i < 60; i++) game.update(0.1);
     expect(game.bugs.length).toBeGreaterThan(0);
     expect(game.wave).toBe(0);
-    for (let i = 0; i < 151; i++) game.update(0.1);
+    for (let i = 0; i < 71; i++) game.update(0.1);
     expect(game.wave).toBe(1);
   });
 
