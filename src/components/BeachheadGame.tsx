@@ -3,6 +3,8 @@ import { Game, T, W, H, COST, WIN_AFTER, HOLD_NEEDED, setMapSize } from "@/game/
 import { renderGame, RS } from "@/game/render";
 import { audioTick, unlockAudio, setMuted } from "@/game/sound";
 import { panCamera, resetCamera, screenToWorld, wheelZoom, zoomCamera, type Camera } from "@/game/camera";
+import { ArrowRight, BookOpen, Crosshair, MapPin, TowerControl } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type Mode = "select" | "infantry" | "tower" | "wall";
 type WallDraft = { x1: number; y1: number; x2: number; y2: number };
@@ -362,8 +364,39 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
 }
 
 function FieldManual({ g, fmt, onClose }: { g: Game; fmt: (s: number) => string; onClose: () => void }) {
+  const [showDetails, setShowDetails] = useState(false);
   const levelTwo = g.level === 2;
   const starting = g.phase === "landing" || g.phase === "shipLanding";
+  if (starting && !levelTwo && !showDetails) {
+    return (
+      <div className="absolute inset-0 z-30 flex items-center justify-center overflow-y-auto bg-background/80 px-6 py-8 sm:px-12">
+        <section className="my-auto w-full max-w-2xl text-center" role="dialog" aria-modal="true" aria-labelledby="opening-title">
+          <p className="font-mono text-xs uppercase text-primary">Level 1 · Hold the line</p>
+          <h2 id="opening-title" className="mt-3 font-display text-6xl uppercase leading-none sm:text-8xl">Beachhead</h2>
+          <p className="mt-4 text-base text-foreground/90 sm:text-lg">Land. Dig in. Survive the swarm.</p>
+          <ol className="mt-9 grid grid-cols-3 gap-4 border-y border-border/70 py-6 sm:mt-12 sm:gap-8 sm:py-8">
+            <li className="flex min-w-0 flex-col items-center gap-3">
+              <MapPin className="size-8 text-primary" strokeWidth={1.5} aria-hidden="true" />
+              <div><h3 className="font-display text-xl uppercase sm:text-2xl">Land a team</h3><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Choose open ground.</p></div>
+            </li>
+            <li className="flex min-w-0 flex-col items-center gap-3">
+              <Crosshair className="size-8 text-destructive" strokeWidth={1.5} aria-hidden="true" />
+              <div><h3 className="font-display text-xl uppercase sm:text-2xl">Hold the bugs</h3><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Troops fire automatically.</p></div>
+            </li>
+            <li className="flex min-w-0 flex-col items-center gap-3">
+              <TowerControl className="size-8 text-success" strokeWidth={1.5} aria-hidden="true" />
+              <div><h3 className="font-display text-xl uppercase sm:text-2xl">Build towers</h3><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Engineers build your defenses.</p></div>
+            </li>
+          </ol>
+          <p className="mt-5 text-sm text-muted-foreground">Win: {fmt(HOLD_NEEDED)} without troop losses, after {fmt(WIN_AFTER)}.</p>
+          <div className="mt-8 flex flex-col items-center gap-3">
+            <Button autoFocus size="lg" className="h-12 w-full max-w-64 font-mono uppercase" onClick={onClose}>Start drop <ArrowRight aria-hidden="true" /></Button>
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowDetails(true)}><BookOpen aria-hidden="true" /> Field manual</Button>
+          </div>
+        </section>
+      </div>
+    );
+  }
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
       <section className="max-h-full w-full max-w-3xl overflow-y-auto rounded-sm border border-primary/40 bg-card/95 p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="field-manual-title">
