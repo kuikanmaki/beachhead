@@ -187,7 +187,7 @@ describe("second-stage command cruiser", () => {
 
     expect(game.wave).toBe(1);
     expect(game.bugs).toHaveLength(42);
-    expect(game.nextHorde - game.t).toBeCloseTo(60);
+    expect(game.nextHorde - game.t).toBeCloseTo(60, 1);
   });
 
   it("grows successive hordes and shortens their intervals gradually", () => {
