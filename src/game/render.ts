@@ -397,39 +397,8 @@ function tower(c: CanvasRenderingContext2D, g: Game, t: any, now: number, dt: nu
   if (t.hp < 300) bar(c, x, y - 0.75, t.hp / 300, 0.9);
 }
 
-// ---------- fog of war ----------
-type FogSurface = { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; image: ImageData };
-const fogSurfaces = new WeakMap<Game, FogSurface>();
-
-function drawFog(g: Game, c: CanvasRenderingContext2D, satellite: boolean) {
-  if (satellite) return;
-  const fog = g.fog;
-  let surface = fogSurfaces.get(g);
-  if (!surface || surface.canvas.width !== fog.width || surface.canvas.height !== fog.height) {
-    const canvas = document.createElement("canvas");
-    canvas.width = fog.width; canvas.height = fog.height;
-    const fctx = canvas.getContext("2d")!;
-    surface = { canvas, ctx: fctx, image: fctx.createImageData(fog.width, fog.height) };
-    fogSurfaces.set(g, surface);
-  }
-  const data = surface.image.data;
-  for (let i = 0; i < fog.explored.length; i++) {
-    const visible = fog.visible[i], explored = fog.explored[i];
-    const noise = (i * 17 + ((i / fog.width) | 0) * 31) % 5;
-    data[i * 4] = visible ? 0 : 3 + noise;
-    data[i * 4 + 1] = visible ? 0 : 7 + noise;
-    data[i * 4 + 2] = visible ? 0 : 10 + noise;
-    data[i * 4 + 3] = visible ? 0 : explored ? 158 : 255;
-  }
-  surface.ctx.putImageData(surface.image, 0, 0);
-  c.save();
-  c.imageSmoothingEnabled = true;
-  c.drawImage(surface.canvas, 0, 0, W, H);
-  c.restore();
-}
-
 // ---------- main ----------
-export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string, camera: Camera, satellite: boolean, wallDraft: { x1: number; y1: number; x2: number; y2: number } | null = null) {
+export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string, camera: Camera, wallDraft: { x1: number; y1: number; x2: number; y2: number } | null = null) {
   const now = performance.now() / 1000, dt = Math.min(0.1, now - (lastNow || now)); lastNow = now;
   if (!g.bg) g.bg = buildTerrain(g);
   sizeUp();
@@ -440,7 +409,6 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
 
   // splats (decals)
   for (const s of g.splats) {
-    if (!satellite && g.fog.stateAt(s.x, s.y, false) === 0) continue;
     const v = get(s);
     if (!v.blobs) { v.blobs = []; for (let k = 0; k < 6; k++) v.blobs.push((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, 0.3 + Math.random() * 0.6); }
     c.globalAlpha = Math.min(0.85, s.life / 8);
@@ -450,12 +418,11 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     c.beginPath(); c.arc(s.x - s.r * 0.15, s.y - s.r * 0.15, s.r * 0.35, 0, TAU); c.fill();
   }
   c.globalAlpha = 1;
-  drawFog(g, c, satellite);
 
   if (g.phase === "landing") {
     if (hover) {
       const hx = Math.floor(hover.x) + 0.5, hy = Math.floor(hover.y) + 0.5, ok = g.at(Math.floor(hover.x), Math.floor(hover.y)) !== ROCK;
-      const pulse = 0.5 + Math.sin(now * 5) * 0.5, col = !satellite ? "150,180,190" : ok ? "95,211,160" : "255,90,60";
+      const pulse = 0.5 + Math.sin(now * 5) * 0.5, col = ok ? "95,211,160" : "255,90,60";
       c.fillStyle = `rgba(${col},0.12)`; poly(c, hx, hy, 2.6, 6, Math.PI / 6); c.fill();
       c.strokeStyle = `rgba(${col},${0.5 + pulse * 0.5})`; c.lineWidth = 0.08; c.stroke();
       c.lineWidth = 0.05; c.beginPath(); c.arc(hx, hy, 0.6 + pulse * 0.6, 0, TAU); c.stroke();
@@ -494,16 +461,15 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   for (const w of g.walls) wall(c, w, now);
   for (const t of g.towers) tower(c, g, t, now, dt, towerFire.has(`${t.tx + 0.5},${t.ty + 0.5}`));
 
-  // bugs: satellite sees everything; otherwise only current troop vision reveals contacts.
+  // All enemy contacts remain visible across the map.
   for (const b of g.bugs) {
-    if (g.fog.stateAt(b.x, b.y, satellite) !== 2) continue;
     const s = get(b, 0, b.x, b.y);
     const mx = b.x - s.px, my = b.y - s.py;
     if (mx * mx + my * my > 1e-6) s.ang = turn(s.ang, Math.atan2(my, mx), dt * 8);
     s.px = b.x; s.py = b.y;
     bug(c, b, s.ang, s.phase, now);
   }
-  for (const b of g.bugs) if (b.kind === 2 && g.fog.stateAt(b.x, b.y, satellite) === 2) bar(c, b.x, b.y - b.r - 0.45, b.hp / b.max, 1.1);
+  for (const b of g.bugs) if (b.kind === 2) bar(c, b.x, b.y - b.r - 0.45, b.hp / b.max, 1.1);
 
   // Teams and squads: every soldier shares the selected unit's movement and target.
   for (const p of g.infantry) {
@@ -568,7 +534,6 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   // tracers + particles (additive light)
   c.globalCompositeOperation = "lighter"; c.lineCap = "round";
   for (const tr of g.tracers) {
-    if (!satellite && g.fog.stateAt(tr.x1, tr.y1, false) !== 2 && g.fog.stateAt(tr.x2, tr.y2, false) !== 2) continue;
     const a = tr.life / (tr.tower ? 0.06 : 0.08);
     c.strokeStyle = tr.tower ? `rgba(255,170,60,${0.35 * a})` : `rgba(255,220,120,${0.3 * a})`; c.lineWidth = 0.16;
     c.beginPath(); c.moveTo(tr.x1, tr.y1); c.lineTo(tr.x2, tr.y2); c.stroke();
@@ -576,7 +541,6 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   }
   for (const pt of parts) {
     pt.life -= dt; pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vx *= 0.9; pt.vy *= 0.9;
-    if (!satellite && g.fog.stateAt(pt.x, pt.y, false) !== 2) continue;
     c.fillStyle = `rgba(${pt.col},${Math.max(0, pt.life / pt.max)})`;
     c.beginPath(); c.arc(pt.x, pt.y, pt.r, 0, TAU); c.fill();
   }
@@ -602,10 +566,10 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
     c.strokeRect(Math.floor(hover.x) + 0.08, Math.floor(hover.y) + 0.18, 0.84, 0.64);
   }
   if (hover && mode === "tower") {
-    const tx = Math.floor(hover.x), ty = Math.floor(hover.y), known = g.fog.stateAt(hover.x, hover.y, satellite) > 0;
-    const ok = known && g.at(tx, ty) !== ROCK, high = known && g.at(tx, ty) === HIGH;
-    const col = !known ? "130,150,160" : ok ? "140,230,255" : "255,90,60";
-    if (known) {
+    const tx = Math.floor(hover.x), ty = Math.floor(hover.y);
+    const ok = g.at(tx, ty) !== ROCK;
+    const col = ok ? "140,230,255" : "255,90,60";
+    {
       c.fillStyle = `rgba(${col},0.07)`; c.strokeStyle = `rgba(${col},0.6)`; c.lineWidth = 0.05;
       c.beginPath(); c.arc(tx + 0.5, ty + 0.5, g.towerRangeAt(tx, ty), 0, TAU); c.fill(); c.stroke();
     }
