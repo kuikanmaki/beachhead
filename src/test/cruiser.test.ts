@@ -182,11 +182,12 @@ describe("second-stage command cruiser", () => {
     expect(game.phase).toBe("playing");
   });
 
-  it("lets a well-defended wall plan win under pressure with troop sacrifices", () => {
-    const game = gameWithCruiser(23);
+  it("lets forward-deployed squads protect wall construction with troop sacrifices", () => {
+    const game = gameWithCruiser(20);
     game.credits = 1000;
-    expect(game.dropSquad(game.core.x - 1, game.core.y)).toBe(true);
-    expect(game.dropSquad(game.core.x + 1, game.core.y)).toBe(true);
+    for (const [dx, dy] of [[-6, 0], [6, 0], [0, -6], [0, 6]]) {
+      expect(game.dropSquad(game.core.x + dx, game.core.y + dy)).toBe(true);
+    }
     const cx = Math.floor(game.core.x), cy = Math.floor(game.core.y), r = 4;
     game.buildWall(cx - r + 0.5, cy - r + 0.5, cx + r + 0.5, cy - r + 0.5);
     game.buildWall(cx + r + 0.5, cy - r + 0.5, cx + r + 0.5, cy + r + 0.5);
@@ -199,6 +200,22 @@ describe("second-stage command cruiser", () => {
     expect(game.walls.filter((wall) => wall.built >= 1)).toHaveLength(32);
     expect(game.deaths).toBeGreaterThan(0);
     expect(game.kills).toBeGreaterThan(0);
+  });
+
+  it("defeats wall construction that has no forward squad protection", () => {
+    const game = gameWithCruiser(23);
+    game.credits = 1000;
+    const cx = Math.floor(game.core.x), cy = Math.floor(game.core.y), r = 4;
+    game.buildWall(cx - r + 0.5, cy - r + 0.5, cx + r + 0.5, cy - r + 0.5);
+    game.buildWall(cx + r + 0.5, cy - r + 0.5, cx + r + 0.5, cy + r + 0.5);
+    game.buildWall(cx + r + 0.5, cy + r + 0.5, cx - r + 0.5, cy + r + 0.5);
+    game.buildWall(cx - r + 0.5, cy + r + 0.5, cx - r + 0.5, cy - r + 0.5);
+
+    for (let i = 0; i < 2400 && game.phase === "playing"; i++) game.update(0.05);
+
+    expect(game.phase).toBe("lost");
+    expect(game.walls.filter((wall) => wall.built >= 1).length).toBeLessThan(32);
+    expect(game.engineers.reduce((sum, engineer) => sum + engineer.members, 0)).toBeLessThan(ENGINEER_TEAM_SIZE);
   });
 
   it("overwhelms an undefended cruiser during the escalating attacks", () => {
