@@ -1,6 +1,6 @@
 # Current update
 
-- [ ] Simplify the opening and Level 1 briefing; verify starting, landing, and optional help.
+- [x] Simplify the opening and Level 1 briefing; verify starting, landing, and optional help.
 - [x] Declutter the right-side overlay; retain essential status and move detailed guidance into pausing level briefings and a field manual.
 - [x] Remove Satellite Comms controls and keep map, contacts, and placement permanently visible.
 - [x] Cancel unfinished towers and wall projects on assigned engineer death; verify replacement engineers cannot resume them.
