@@ -347,21 +347,18 @@ export class Game {
     return true;
   }
 
-  /** A four-connected raster line prevents diagonal gaps in a defensive perimeter. */
+  /** Evenly spaced centers stay on the exact drag line; tile coordinates retain perimeter collision. */
   wallLine(x1: number, y1: number, x2: number, y2: number) {
-    let x = Math.floor(x1), y = Math.floor(y1);
-    const endX = Math.floor(x2), endY = Math.floor(y2);
-    const dx = Math.abs(endX - x), sx = Math.sign(endX - x);
-    const dy = -Math.abs(endY - y), sy = Math.sign(endY - y);
-    let err = dx + dy;
-    const tiles: { tx: number; ty: number }[] = [{ tx: x, ty: y }];
-    while (x !== endX || y !== endY) {
-      const e2 = 2 * err, moveX = e2 >= dy, moveY = e2 <= dx;
-      if (moveX && moveY && sx && sy) tiles.push({ tx: x + sx, ty: y });
-      if (moveX) { err += dy; x += sx; }
-      if (moveY) { err += dx; y += sy; }
+    const dx = x2 - x1, dy = y2 - y1;
+    const length = Math.hypot(dx, dy), angle = Math.atan2(dy, dx);
+    const steps = Math.max(1, Math.ceil(length));
+    const tiles: { tx: number; ty: number; x: number; y: number; angle: number }[] = [];
+    for (let i = 0; i <= steps; i++) {
+      const f = i / steps, x = x1 + dx * f, y = y1 + dy * f;
+      const tx = Math.floor(x), ty = Math.floor(y);
       const last = tiles[tiles.length - 1];
-      if (!last || last.tx !== x || last.ty !== y) tiles.push({ tx: x, ty: y });
+      // Very short drags can sample one tile twice; never stack two wall units on it.
+      if (!last || last.tx !== tx || last.ty !== ty) tiles.push({ tx, ty, x, y, angle });
     }
     return tiles;
   }

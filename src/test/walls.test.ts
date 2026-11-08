@@ -46,13 +46,33 @@ describe("Level 2 engineer teams and walls", () => {
     expect(game.credits).toBe(1000 - COST.engineerTeam);
   });
 
-  it("rasterizes a drag as an ordered four-connected line without diagonal gaps", () => {
+  it("places evenly spaced wall units on the exact drawn line at one shared angle", () => {
     const game = cruiserGame(71);
-    const line = game.wallLine(5.5, 5.5, 9.5, 8.5);
-    expect(line[0]).toEqual({ tx: 5, ty: 5 });
-    expect(line.at(-1)).toEqual({ tx: 9, ty: 8 });
-    for (let i = 1; i < line.length; i++) {
-      expect(Math.abs(line[i]!.tx - line[i - 1]!.tx) + Math.abs(line[i]!.ty - line[i - 1]!.ty)).toBe(1);
+    const x1 = 5.5, y1 = 5.5, x2 = 9.5, y2 = 8.5;
+    const line = game.wallLine(x1, y1, x2, y2);
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    expect(line.length).toBeGreaterThan(2);
+    expect(line[0]).toMatchObject({ tx: 5, ty: 5, x: x1, y: y1, angle });
+    expect(line.at(-1)).toMatchObject({ tx: 9, ty: 8, x: x2, y: y2, angle });
+    for (let i = 0; i < line.length; i++) {
+      const site = line[i]!;
+      expect(site.angle).toBeCloseTo(angle);
+      expect((site.x - x1) * (y2 - y1) - (site.y - y1) * (x2 - x1)).toBeCloseTo(0);
+      expect(site.tx).toBe(Math.floor(site.x));
+      expect(site.ty).toBe(Math.floor(site.y));
+      if (i) expect(Math.hypot(site.x - line[i - 1]!.x, site.y - line[i - 1]!.y)).toBeLessThanOrEqual(1.000001);
+    }
+  });
+
+  it("keeps the drawn angle and straight centers when creating construction jobs", () => {
+    const game = cruiserGame(71);
+    game.credits = 1000;
+    expect(game.buildWall(10.2, 10.8, 14.6, 13.1)).toBe(true);
+    const angle = Math.atan2(2.3, 4.4);
+    expect(game.walls.length).toBeGreaterThan(2);
+    for (const wall of game.walls) {
+      expect(wall.angle).toBeCloseTo(angle);
+      expect((wall.x - 10.2) * 2.3 - (wall.y - 10.8) * 4.4).toBeCloseTo(0);
     }
   });
 

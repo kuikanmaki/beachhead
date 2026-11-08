@@ -586,10 +586,12 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   // placement previews
   if (mode === "wall" && wallDraft) {
     const plan = g.wallPlan(wallDraft.x1, wallDraft.y1, wallDraft.x2, wallDraft.y2);
-    for (const { tx, ty } of plan.tiles) {
+    for (const { tx, ty, x, y, angle } of plan.tiles) {
       const ok = g.canBuildWallAt(tx, ty), col = ok ? "255,190,80" : "255,90,60";
-      c.fillStyle = `rgba(${col},${ok ? 0.28 : 0.18})`; c.fillRect(tx + 0.06, ty + 0.16, 0.88, 0.68);
-      c.strokeStyle = `rgba(${col},0.85)`; c.lineWidth = 0.04; c.strokeRect(tx + 0.06, ty + 0.16, 0.88, 0.68);
+      c.save(); c.translate(x, y); c.rotate(angle);
+      c.fillStyle = `rgba(${col},${ok ? 0.28 : 0.18})`; c.fillRect(-0.44, -0.34, 0.88, 0.68);
+      c.strokeStyle = `rgba(${col},0.85)`; c.lineWidth = 0.04; c.strokeRect(-0.44, -0.34, 0.88, 0.68);
+      c.restore();
     }
     c.strokeStyle = "rgba(255,220,150,0.75)"; c.lineWidth = 0.05; c.setLineDash([0.18, 0.12]);
     c.beginPath(); c.moveTo(wallDraft.x1, wallDraft.y1); c.lineTo(wallDraft.x2, wallDraft.y2); c.stroke(); c.setLineDash([]);
