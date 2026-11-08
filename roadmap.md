@@ -1,5 +1,6 @@
 # Current update
 
-- [x] Start Level 2 without leftover enemies and provide a quiet setup period.
-- [x] Increase attacks gradually using time spent in Level 2.
-- [x] Test pacing and verify the Level 2 transition in the live preview.
+- [ ] Start Level 2 with no enemies and only a brief setup window.
+- [ ] Escalate scouts and hordes so troops face real pressure.
+- [ ] Verify skilled wall-building remains achievable and add pacing tests.
+- [ ] Playtest the Level 2 transition and combat in the live preview.
