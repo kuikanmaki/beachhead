@@ -9,7 +9,9 @@ export let H = 32;
 export function setMapSize(aspect: number) { H = 32; W = Math.max(32, Math.min(80, Math.round(32 * aspect))); }
 export const GROUND = 0, HIGH = 1, ROCK = 2;
 
-export const COST = { team: 60, squad: 180, engineer: 80, tower: 120 };
+export const COST = { team: 60, squad: 180, engineer: 80, engineerTeam: 160, tower: 120, wall: 8 };
+export const WALL_BUILD_TIME = 0.75;
+export const ENGINEER_TEAM_SIZE = 4;
 export const WIN_AFTER = 180; // seconds before victory can trigger
 export const HOLD_NEEDED = 90; // seconds without an infantry death
 export const CRUISER_RADIUS = 3; // clear 7×7-tile landing footprint
