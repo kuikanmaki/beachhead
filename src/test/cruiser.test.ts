@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CRUISER_HP, Game, GROUND, HOLD_NEEDED, ROCK, SQUAD_SIZE, WIN_AFTER, setMapSize } from "@/game/engine";
 
-function gameWithCruiser() {
+function gameWithCruiser(seed = 21) {
   setMapSize(2);
-  const game = new Game(21);
+  const game = new Game(seed);
   game.map.fill(GROUND);
   game.land(16, 16);
   game.phase = "won";
