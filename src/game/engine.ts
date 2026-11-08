@@ -406,7 +406,7 @@ export class Game {
     }
 
     // Choose a point in each tile span with reachable, gap-free spacing. Endpoints stay exact.
-    const epsilon = 0.000001;
+    const epsilon = 0.000001, maxGap = 0.999998;
     const reachable: { low: number; high: number }[] = [{ low: 0, high: 0 }];
     let possible = true;
     for (let i = 1; i < spans.length; i++) {
