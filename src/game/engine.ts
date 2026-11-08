@@ -27,6 +27,18 @@ const SOLDIER_HP = 20;
 // US Marine benchmark: four per fire team; three fire teams plus one squad leader.
 export const TEAM_SIZE = 4, SQUAD_FIRE_TEAMS = 3, SQUAD_SIZE = TEAM_SIZE * SQUAD_FIRE_TEAMS + 1;
 export const maxInfantrySoldiers = (unit: Infantry) => unit.kind === "squad" ? SQUAD_SIZE : TEAM_SIZE;
+export type FormationSlot = { x: number; y: number; fireTeam: number | null };
+const TEAM_FORMATION: FormationSlot[] = [
+  { x: 0.28, y: 0, fireTeam: 0 }, { x: -0.12, y: -0.28, fireTeam: 0 },
+  { x: -0.12, y: 0.28, fireTeam: 0 }, { x: -0.45, y: 0, fireTeam: 0 },
+];
+const SQUAD_FORMATION: FormationSlot[] = [
+  ...[[0.05, -0.82], [0.05, 0.82], [-0.78, 0]].flatMap(([cx, cy], fireTeam) =>
+    TEAM_FORMATION.map((slot) => ({ x: cx + slot.x, y: cy + slot.y, fireTeam }))),
+  { x: 0.72, y: 0, fireTeam: null }, // squad leader
+];
+/** Fixed close-order slots keep all three fire teams together under one shared command. */
+export const infantryFormation = (kind: InfantryKind) => kind === "squad" ? SQUAD_FORMATION : TEAM_FORMATION;
 const C = {
   ground: "#8a6a45", ground2: "#7d5f3d", high: "#b08a58", high2: "#c49a63", rock: "#3d2c22", rock2: "#2c201a",
   bug: "#2b1a12", bugEye: "#e8492a", tank: "#4a1f10", inf: "#9fd0ff", infSel: "#ffd34d", eng: "#ffb347",
@@ -299,7 +311,7 @@ export class Game {
     this.message = "Tower site marked. Engineers en route."; return true;
   }
   click(x: number, y: number) {
-    const p = this.infantry.find((p) => Math.hypot(p.x - x, p.y - y) < 0.9);
+    const p = this.infantry.find((p) => Math.hypot(p.x - x, p.y - y) < (p.kind === "squad" ? 1.5 : 0.9));
     if (p) { this.selected = p.id; return; }
     const sel = this.infantry.find((p) => p.id === this.selected);
     if (sel) this.commandInfantry(sel, x, y);
@@ -399,7 +411,8 @@ export class Game {
       if (tg && p.cd <= 0) {
         p.cd = 0.45;
         tg.hp -= 6 * p.soldiers;
-        this.tracers.push({ x1: p.x, y1: p.y, x2: tg.x, y2: tg.y, life: 0.08, tower: false });
+        const volleys = p.kind === "squad" ? [[0, -0.82], [0, 0.82], [-0.78, 0]] : [[0, 0]];
+        for (const [ox, oy] of volleys) this.tracers.push({ x1: p.x + ox, y1: p.y + oy, x2: tg.x, y2: tg.y, life: 0.08, tower: false });
       }
     }
     this.infantry = this.infantry.filter((p) => p.soldiers > 0);

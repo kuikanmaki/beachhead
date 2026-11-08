@@ -1,7 +1,7 @@
 // @ts-nocheck -- hot-loop pixel/canvas code; strict indexed-access checks disabled for this file only.
 // High-resolution renderer for Beachhead: lit procedural terrain, animated units, light effects.
 import type { Game } from "./engine";
-import { T, W, H, ROCK, HIGH } from "./engine";
+import { T, W, H, ROCK, HIGH, infantryFormation, maxInfantrySoldiers } from "./engine";
 import type { Camera } from "./camera";
 
 export const RS = 2; // render scale: canvas pixels per engine pixel
@@ -484,17 +484,18 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
       c.fillStyle = "rgba(255,211,77,0.05)"; c.strokeStyle = "rgba(255,211,77,0.35)";
       c.beginPath(); c.arc(p.x, p.y, range, 0, TAU); c.fill(); c.stroke();
       c.strokeStyle = "rgba(255,211,77,0.9)"; c.lineWidth = 0.05;
-      c.beginPath(); c.ellipse(p.x, p.y + 0.05, 0.75, 0.6, 0, 0, TAU); c.stroke();
+      c.beginPath(); c.ellipse(p.x, p.y + 0.05, p.kind === "squad" ? 1.5 : 0.75, p.kind === "squad" ? 1.3 : 0.6, 0, 0, TAU); c.stroke();
     }
     const flash = p.cd > 0.38;
     const ca = Math.cos(s.ang), sa = Math.sin(s.ang);
-    const form = [[0.35, 0], [0, -0.38], [0, 0.38], [-0.38, -0.2], [-0.38, 0.2]];
+    const form = infantryFormation(p.kind);
     for (let i = 0; i < p.soldiers; i++) {
-      const [fx, fy] = form[i];
+      const { x: fx, y: fy, fireTeam } = form[i];
       const jx = Math.sin(now * 2 + i * 2.1 + s.phase) * 0.03;
-      trooper(c, p.x + fx * ca - fy * sa + jx, p.y + fx * sa + fy * ca, s.ang + (i - 2) * 0.05, "#5d6b74", "#3c463c", flash && (i + Math.floor(now * 20)) % 2 === 0, sel);
+      const leader = fireTeam === null;
+      trooper(c, p.x + fx * ca - fy * sa + jx, p.y + fx * sa + fy * ca, s.ang + (i - 2) * 0.025, leader ? "#b89b54" : "#5d6b74", leader ? "#6d562d" : "#3c463c", flash && (i + Math.floor(now * 20)) % 2 === 0, sel);
     }
-    bar(c, p.x, p.y - 0.85, p.soldiers / 5, 0.9);
+    bar(c, p.x, p.y - (p.kind === "squad" ? 1.55 : 0.85), p.soldiers / maxInfantrySoldiers(p), p.kind === "squad" ? 1.8 : 0.9);
   }
 
   // engineers
