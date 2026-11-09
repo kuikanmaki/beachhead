@@ -3,7 +3,7 @@ import { Game, T, W, H, COST, WIN_AFTER, HOLD_NEEDED, setMapSize } from "@/game/
 import { renderGame, RS } from "@/game/render";
 import { audioTick, unlockAudio, setMuted } from "@/game/sound";
 import { panCamera, resetCamera, screenToWorld, wheelZoom, zoomCamera, type Camera } from "@/game/camera";
-import { ArrowRight, BookOpen, Crosshair, MapPin, TowerControl } from "lucide-react";
+import { ArrowRight, BookOpen, Crosshair, Shield, TowerControl } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Mode = "select" | "infantry" | "tower" | "wall";
@@ -32,8 +32,16 @@ export function BeachheadGame() {
   const [mute, setMute] = useState(false);
   const [briefingOpen, setBriefingOpen] = useState(true);
   const briefingRef = useRef(true);
+  const introductionRef = useRef(true);
+  const [introduction, setIntroduction] = useState(true);
   const [, setTick] = useState(0);
   const setBriefing = (open: boolean) => { briefingRef.current = open; setBriefingOpen(open); };
+  const advanceBriefing = () => {
+    if (introductionRef.current) {
+      introductionRef.current = false;
+      setIntroduction(false);
+    } else setBriefing(false);
+  };
   const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
   const toggleMute = () => setMute((m) => { setMuted(!m); return !m; });
   const applyZoom = (next: number, u = 0.5, v = 0.5) => {
@@ -70,7 +78,8 @@ export function BeachheadGame() {
     const onKey = (e: KeyboardEvent) => {
       unlockAudio();
       if (briefingRef.current) {
-        if (e.key === "Escape" || e.key === "Enter") setBriefing(false);
+        if (e.key === "Enter") { e.preventDefault(); advanceBriefing(); }
+        if (e.key === "Escape" && gameRef.current?.phase === "playing") setBriefing(false);
         return;
       }
       if (e.key === "?") { setBriefing(true); return; }
@@ -183,6 +192,8 @@ export function BeachheadGame() {
     wallDragRef.current = null;
     updateWallDraft(null);
     resetView();
+    introductionRef.current = true;
+    setIntroduction(true);
     setBriefing(true);
   };
   const continueMission = () => {
@@ -230,7 +241,7 @@ export function BeachheadGame() {
           })()}
         </div>
       )}
-      {g && briefingOpen && <FieldManual g={g} fmt={fmt} onClose={() => setBriefing(false)} />}
+      {g && briefingOpen && <FieldManual g={g} fmt={fmt} introduction={introduction} onClose={advanceBriefing} />}
     </div>
   );
 }
@@ -365,7 +376,7 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
   );
 }
 
-function FieldManual({ g, fmt, onClose }: { g: Game; fmt: (s: number) => string; onClose: () => void }) {
+function FieldManual({ g, fmt, introduction, onClose }: { g: Game; fmt: (s: number) => string; introduction: boolean; onClose: () => void }) {
   const [showDetails, setShowDetails] = useState(false);
   const levelTwo = g.level === 2;
   const starting = g.phase === "landing" || g.phase === "shipLanding";
@@ -373,27 +384,23 @@ function FieldManual({ g, fmt, onClose }: { g: Game; fmt: (s: number) => string;
     return (
       <div className="absolute inset-0 z-30 flex items-center justify-center overflow-y-auto bg-background/80 px-6 py-8 sm:px-12">
         <section className="my-auto w-full max-w-2xl text-center" role="dialog" aria-modal="true" aria-labelledby="opening-title">
-          <h2 id="opening-title" className="font-display text-6xl uppercase leading-none sm:text-8xl">{levelTwo ? "Secure the cruiser" : "Beachhead"}</h2>
-          <p className="mt-4 text-base text-foreground/90 sm:text-lg">{levelTwo ? "Level 2 · Seal the landing zone." : "Hold the beachhead against the swarm."}</p>
-          <ol className="mt-9 grid grid-cols-3 gap-4 border-y border-border/70 py-6 sm:mt-12 sm:gap-8 sm:py-8">
-            <li className="flex min-w-0 flex-col items-center gap-3">
-              <MapPin className="size-8 text-primary" strokeWidth={1.5} aria-hidden="true" />
-              <h3 className="font-display text-xl uppercase sm:text-2xl">{levelTwo ? "Land cruiser" : "Land troops"}</h3>
-            </li>
-            <li className="flex min-w-0 flex-col items-center gap-3">
-              <Crosshair className="size-8 text-destructive" strokeWidth={1.5} aria-hidden="true" />
-              <h3 className="font-display text-xl uppercase sm:text-2xl">{levelTwo ? "Protect builders" : "Hold the line"}</h3>
-              {levelTwo && <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">Send squads ahead of your engineer teams.</p>}
-            </li>
-            <li className="flex min-w-0 flex-col items-center gap-3">
-              <TowerControl className="size-8 text-success" strokeWidth={1.5} aria-hidden="true" />
-              <h3 className="font-display text-xl uppercase sm:text-2xl">{levelTwo ? "Build walls" : "Build towers"}</h3>
-              {levelTwo && <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">Choose [4] Build Wall, then drag a line.</p>}
-            </li>
-          </ol>
-          <p className="mx-auto mt-5 max-w-sm text-sm leading-relaxed text-muted-foreground">{levelTwo ? "Surround the cruiser with walls or sheer rock. Clear all bugs inside to win." : "Keep your troops alive until your towers can hold the line."}</p>
+          {!introduction && <p className="mb-4 font-mono text-sm uppercase text-primary">Level {g.level}</p>}
+          <h2 id="opening-title" className={`font-display uppercase leading-none ${introduction ? "text-7xl sm:text-8xl" : "text-5xl sm:text-7xl"}`}>{introduction ? "Beachhead" : levelTwo ? "Secure the cruiser" : "Hold the beachhead"}</h2>
+          {introduction ? <>
+            <p className="mx-auto mt-6 max-w-lg text-base leading-relaxed text-foreground/90 sm:text-lg">Command a desperate landing force against an endless arachnid swarm.</p>
+            <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base">Drop infantry, protect your engineers, and turn a hostile desert into a permanent defensive position before your troops are overrun.</p>
+            <div className="mt-8 flex justify-center gap-8 border-y border-border/70 py-5" aria-hidden="true">
+              <Crosshair className="size-8 text-destructive" strokeWidth={1.5} />
+              <Shield className="size-8 text-primary" strokeWidth={1.5} />
+              <TowerControl className="size-8 text-success" strokeWidth={1.5} />
+            </div>
+          </> : <>
+            {levelTwo ? <Shield className="mx-auto mt-8 size-10 text-primary" strokeWidth={1.5} aria-hidden="true" /> : <TowerControl className="mx-auto mt-8 size-10 text-success" strokeWidth={1.5} aria-hidden="true" />}
+            <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-foreground/90 sm:text-lg">{levelTwo ? "Build walls around your cruiser to form a base. Clear any bugs trapped inside." : "Keep your infantry alive long enough for your defenses to stabilize the line."}</p>
+            <p className="mx-auto mt-7 max-w-md border-t border-border/70 pt-5 text-sm leading-relaxed text-muted-foreground"><span className="text-primary">Tip: </span>{levelTwo ? "Forward-deploy larger squads to protect the wall builders." : "Once machine gun towers are built, pull soldiers behind them."}</p>
+          </>}
           <div className="mt-8 flex flex-col items-center gap-3">
-            <Button autoFocus size="lg" className="h-12 w-full max-w-64 font-mono uppercase" onClick={onClose}>{levelTwo ? "Land cruiser" : "Play"} <ArrowRight aria-hidden="true" /></Button>
+            <Button key={introduction ? "game" : `level-${g.level}`} autoFocus size="lg" className="h-12 w-full max-w-64 font-mono uppercase" onClick={onClose}>{introduction ? "Play" : levelTwo ? "Land cruiser" : "Land troops"} <ArrowRight aria-hidden="true" /></Button>
             <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowDetails(true)}><BookOpen aria-hidden="true" /> How to play</Button>
           </div>
         </section>
@@ -439,7 +446,7 @@ function FieldManual({ g, fmt, onClose }: { g: Game; fmt: (s: number) => string;
         </div>
         <div className="mt-5 flex items-center justify-between gap-4 border-t border-border/60 pt-4">
           <p className="font-mono text-xs text-muted-foreground">{starting ? "Review the briefing, then choose your landing site." : "The simulation is paused while this manual is open."}</p>
-          <button autoFocus className="hud-btn hud-btn-primary shrink-0" onClick={onClose}>{starting ? levelTwo ? "Choose cruiser site" : "Choose landing site" : "Return to battle"}</button>
+          <Button autoFocus className="shrink-0 font-mono uppercase" onClick={() => starting ? setShowDetails(false) : onClose()}>{starting ? "Back" : "Return to battle"}</Button>
         </div>
       </section>
     </div>
