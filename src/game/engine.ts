@@ -21,7 +21,7 @@ type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: 
 export type InfantryKind = "team" | "squad";
 type MovableUnit = { x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[] };
 export type Infantry = MovableUnit & { id: number; kind: InfantryKind; fireTeams: number; soldiers: number; hp: number; cd: number };
-export type Engineer = MovableUnit & { id: number; kind: "engineer" | "team"; members: number; hp: number; job: number | null; manualMove: boolean };
+export type Engineer = MovableUnit & { id: number; kind: "engineer" | "team"; members: number; hp: number; job: number | null; manualMove: boolean; postBuildMove?: boolean };
 type Tower = { id: number; tx: number; ty: number; built: number; hp: number; cd: number };
 export type WallSegment = { id: number; jobId: number; tx: number; ty: number; x: number; y: number; angle: number; built: number; paid: boolean };
 export type WallJob = { id: number; engineerId: number | null; wallIds: number[] };
@@ -522,7 +522,10 @@ export class Game {
     const engineer = this.engineers.find((e) => Math.hypot(e.x - x, e.y - y) < 0.9);
     if (engineer) { this.selected = engineer.id; return; }
     const selectedUnit = this.infantry.find((unit) => unit.id === this.selected) ?? this.engineers.find((unit) => unit.id === this.selected);
-    if (selectedUnit && this.commandInfantry(selectedUnit, x, y) && "manualMove" in selectedUnit) selectedUnit.manualMove = true;
+    if (selectedUnit && this.commandInfantry(selectedUnit, x, y) && "manualMove" in selectedUnit) {
+      selectedUnit.manualMove = true;
+      selectedUnit.postBuildMove = false;
+    }
   }
 
   // ---------- simulation ----------
@@ -652,6 +655,11 @@ export class Game {
         if (!e.path.length) e.manualMove = false;
         continue;
       }
+      if (e.postBuildMove) {
+        this.advanceMovement(e, 2.6 * dt);
+        if (!e.path.length) e.postBuildMove = false;
+        continue;
+      }
       const wallJob = this.activeWallJob(e.id), segment = wallJob ? this.nextWallSegment(wallJob) : undefined;
       let job = segment ? undefined : this.towers.find((t) => t.id === e.job && t.built < 1);
       if (!segment && !job) {
@@ -683,10 +691,28 @@ export class Game {
             this.wallGrid[segment.ty * W + segment.tx] = 1;
             this.computeFlow();
             this.message = `Wall segment secured. ${this.walls.filter((w) => w.built >= 1).length} completed.`;
+            // Step behind this segment toward the cruiser, never across sheer rock.
+            const homeDistance = Math.hypot(this.core.x - e.x, this.core.y - e.y);
+            if (homeDistance > 0.15) {
+              for (let step = Math.min(2, homeDistance); step >= 0.25; step -= 0.25) {
+                const x = e.x + (this.core.x - e.x) * step / homeDistance;
+                const y = e.y + (this.core.y - e.y) * step / homeDistance;
+                if (this.findInfantryPath(e.x, e.y, x, y).length && this.commandInfantry(e, x, y)) {
+                  e.postBuildMove = true;
+                  break;
+                }
+              }
+            }
           }
         }
       }
-      else if (job) job.built = Math.min(1, job.built + dt / 6);
+      else if (job) {
+        job.built = Math.min(1, job.built + dt / 6);
+        if (job.built >= 1) {
+          e.job = null;
+          if (e.kind === "engineer" && this.commandInfantry(e, this.core.x, this.core.y)) e.postBuildMove = true;
+        }
+      }
     }
     if (this.selected && !this.infantry.some((p) => p.id === this.selected) && !this.engineers.some((e) => e.id === this.selected)) this.unselect();
 

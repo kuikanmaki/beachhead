@@ -1,5 +1,7 @@
 # Current update
 
+- [x] Restore individual engineers returning to ship and teams stepping behind each completed wall segment; verify shared routing and manual overrides (67 tests and live movement checks passed).
+
 - [x] Reject blocked or disconnected wall lines; color invalid previews red and verify no partial construction starts.
 - [x] Shorten Level 2 briefing to new objective and essential squad/wall actions; verify transition and landing.
 - [x] Share infantry movement with engineers and engineer teams, including construction travel; verify rock detours and unreachable destinations.
