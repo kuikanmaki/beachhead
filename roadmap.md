@@ -1,5 +1,7 @@
 # Current update
 
+- [x] Separate the game introduction and both level start screens; verified progression, optional help, desktop/mobile layouts, and all 67 tests.
+
 - [x] Restore individual engineers returning to ship and teams stepping behind each completed wall segment; verify shared routing and manual overrides (67 tests and live movement checks passed).
 
 - [x] Reject blocked or disconnected wall lines; color invalid previews red and verify no partial construction starts.
