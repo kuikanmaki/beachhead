@@ -35,35 +35,58 @@ export function BeachheadGame() {
   const introductionRef = useRef(true);
   const [introduction, setIntroduction] = useState(true);
   const [, setTick] = useState(0);
-  const setBriefing = (open: boolean) => { briefingRef.current = open; setBriefingOpen(open); };
+  const setBriefing = (open: boolean) => {
+    briefingRef.current = open;
+    setBriefingOpen(open);
+  };
   const advanceBriefing = () => {
     if (introductionRef.current) {
       introductionRef.current = false;
       setIntroduction(false);
     } else setBriefing(false);
   };
-  const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
-  const toggleMute = () => setMute((m) => { setMuted(!m); return !m; });
+  const setMode = (m: Mode) => {
+    modeRef.current = m;
+    setModeState(m);
+  };
+  const toggleMute = () =>
+    setMute((m) => {
+      setMuted(!m);
+      return !m;
+    });
   const applyZoom = (next: number, u = 0.5, v = 0.5) => {
     cameraRef.current = zoomCamera(cameraRef.current, next, u, v);
     setZoom(cameraRef.current.zoom);
   };
-  const resetView = () => { cameraRef.current = resetCamera(); setZoom(1); };
+  const resetView = () => {
+    cameraRef.current = resetCamera();
+    setZoom(1);
+  };
   const clientToWorld = (clientX: number, clientY: number) => {
     const rect = canvasRef.current!.getBoundingClientRect();
     return screenToWorld(cameraRef.current, (clientX - rect.left) / rect.width, (clientY - rect.top) / rect.height);
   };
-  const updateWallDraft = (draft: WallDraft | null) => { wallDraftRef.current = draft; setWallDraft(draft); };
+  const updateWallDraft = (draft: WallDraft | null) => {
+    wallDraftRef.current = draft;
+    setWallDraft(draft);
+  };
 
   useEffect(() => {
     gameRef.current = freshGame();
     setTick((t) => t + 1);
-    let raf = 0, last = performance.now(), hud = 0;
+    let raf = 0,
+      last = performance.now(),
+      hud = 0;
     const loop = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      const g = gameRef.current!, cv = canvasRef.current;
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const g = gameRef.current!,
+        cv = canvasRef.current;
       if (cv) {
-        if (cv.width !== W * T * RS || cv.height !== H * T * RS) { cv.width = W * T * RS; cv.height = H * T * RS; }
+        if (cv.width !== W * T * RS || cv.height !== H * T * RS) {
+          cv.width = W * T * RS;
+          cv.height = H * T * RS;
+        }
         if (!briefingRef.current) {
           g.update(dt);
           audioTick(g, dt);
@@ -71,18 +94,27 @@ export function BeachheadGame() {
         renderGame(g, cv.getContext("2d")!, hoverRef.current, modeRef.current, cameraRef.current, wallDraftRef.current);
       }
       hud += dt;
-      if (hud > 0.15) { hud = 0; setTick((t) => t + 1); }
+      if (hud > 0.15) {
+        hud = 0;
+        setTick((t) => t + 1);
+      }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     const onKey = (e: KeyboardEvent) => {
       unlockAudio();
       if (briefingRef.current) {
-        if (e.key === "Enter") { e.preventDefault(); advanceBriefing(); }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          advanceBriefing();
+        }
         if (e.key === "Escape" && gameRef.current?.phase === "playing") setBriefing(false);
         return;
       }
-      if (e.key === "?") { setBriefing(true); return; }
+      if (e.key === "?") {
+        setBriefing(true);
+        return;
+      }
       if (e.key === "1") setMode("infantry");
       if (e.key === "2") gameRef.current?.trainEngineer();
       if (e.key === "3") setMode("tower");
@@ -97,7 +129,10 @@ export function BeachheadGame() {
         wallDragRef.current = null;
         updateWallDraft(null);
       }
-      if (e.key === "0") { cameraRef.current = resetCamera(); setZoom(1); }
+      if (e.key === "0") {
+        cameraRef.current = resetCamera();
+        setZoom(1);
+      }
       if (e.key === "m" || e.key === "M") toggleMute();
     };
     const cv = canvasRef.current;
@@ -105,7 +140,8 @@ export function BeachheadGame() {
       e.preventDefault();
       if (!cv) return;
       const rect = cv.getBoundingClientRect();
-      const u = (e.clientX - rect.left) / rect.width, v = (e.clientY - rect.top) / rect.height;
+      const u = (e.clientX - rect.left) / rect.width,
+        v = (e.clientY - rect.top) / rect.height;
       cameraRef.current = wheelZoom(cameraRef.current, e.deltaY, e.deltaMode, u, v);
       setZoom(cameraRef.current.zoom);
     };
@@ -114,22 +150,30 @@ export function BeachheadGame() {
       const wallDrag = wallDragRef.current;
       if (wallDrag) {
         const p = clientToWorld(e.clientX, e.clientY);
-        wallDrag.x2 = p.x; wallDrag.y2 = p.y;
+        wallDrag.x2 = p.x;
+        wallDrag.y2 = p.y;
         if (Math.hypot(e.clientX - wallDrag.sx, e.clientY - wallDrag.sy) >= 5) wallDrag.moved = true;
         updateWallDraft({ x1: wallDrag.x1, y1: wallDrag.y1, x2: wallDrag.x2, y2: wallDrag.y2 });
         return;
       }
-      const d = dragRef.current, cvs = canvasRef.current;
+      const d = dragRef.current,
+        cvs = canvasRef.current;
       if (!d || !cvs) return;
       const rect = cvs.getBoundingClientRect();
-      const dx = e.clientX - d.lx, dy = e.clientY - d.ly;
-      d.lx = e.clientX; d.ly = e.clientY;
+      const dx = e.clientX - d.lx,
+        dy = e.clientY - d.ly;
+      d.lx = e.clientX;
+      d.ly = e.clientY;
       if (!d.moved) {
         if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5) return;
         d.moved = true;
         if (cameraRef.current.zoom > 1) setDragging(true);
       }
-      cameraRef.current = panCamera(cameraRef.current, (dx / rect.width) * W / cameraRef.current.zoom, (dy / rect.height) * H / cameraRef.current.zoom);
+      cameraRef.current = panCamera(
+        cameraRef.current,
+        ((dx / rect.width) * W) / cameraRef.current.zoom,
+        ((dy / rect.height) * H) / cameraRef.current.zoom,
+      );
     };
     const onPointerUp = () => {
       const wallDrag = wallDragRef.current;
@@ -165,23 +209,32 @@ export function BeachheadGame() {
 
   const toWorld = (e: React.MouseEvent) => clientToWorld(e.clientX, e.clientY);
   const onClick = (e: React.MouseEvent) => {
-    if (suppressClickRef.current) { suppressClickRef.current = false; dragRef.current = null; return; }
-    if (e.button !== 0 || dragRef.current?.moved) { dragRef.current = null; return; }
-    const g = gameRef.current, p = toWorld(e);
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      dragRef.current = null;
+      return;
+    }
+    if (e.button !== 0 || dragRef.current?.moved) {
+      dragRef.current = null;
+      return;
+    }
+    const g = gameRef.current,
+      p = toWorld(e);
     if (!g) return;
     if (g.phase === "landing") return void g.land(Math.floor(p.x), Math.floor(p.y));
     if (g.phase === "shipLanding") return void g.landCruiser(Math.floor(p.x), Math.floor(p.y));
     if (g.phase !== "playing") return;
-    if (modeRef.current === "infantry") { if (g.dropInfantry(p.x, p.y) && !e.shiftKey) setMode("select"); }
-    else if (modeRef.current === "tower") {
+    if (modeRef.current === "infantry") {
+      if (g.dropInfantry(p.x, p.y) && !e.shiftKey) setMode("select");
+    } else if (modeRef.current === "tower") {
       if (g.placeTower(Math.floor(p.x), Math.floor(p.y)) && !e.shiftKey) setMode("select");
-    }
-    else if (modeRef.current === "wall") g.message = "Click and drag to mark a wall line.";
+    } else if (modeRef.current === "wall") g.message = "Click and drag to mark a wall line.";
     else g.click(p.x, p.y);
   };
   const onContext = (e: React.MouseEvent) => {
     e.preventDefault();
-    wallDragRef.current = null; updateWallDraft(null);
+    wallDragRef.current = null;
+    updateWallDraft(null);
     setMode("select");
     gameRef.current?.unselect();
     setTick((t) => t + 1);
@@ -230,14 +283,42 @@ export function BeachheadGame() {
         onMouseMove={(e) => (hoverRef.current = toWorld(e))}
         onMouseLeave={() => (hoverRef.current = null)}
       />
-      {g && !(briefingOpen && (g.phase === "landing" || g.phase === "shipLanding")) && <Hud g={g} mode={mode} setMode={setMode} mute={mute} toggleMute={toggleMute} fmt={fmt} restart={restart} continueMission={continueMission} zoom={zoom} applyZoom={applyZoom} resetView={resetView} openBriefing={() => setBriefing(true)} />}
+      {g && !(briefingOpen && (g.phase === "landing" || g.phase === "shipLanding")) && (
+        <Hud
+          g={g}
+          mode={mode}
+          setMode={setMode}
+          mute={mute}
+          toggleMute={toggleMute}
+          fmt={fmt}
+          restart={restart}
+          continueMission={continueMission}
+          zoom={zoom}
+          applyZoom={applyZoom}
+          resetView={resetView}
+          openBriefing={() => setBriefing(true)}
+        />
+      )}
       {g && wallDraft && (
-        <div className="pointer-events-none absolute bottom-16 left-4 rounded-sm border border-primary/40 bg-card/90 px-3 py-2 font-mono text-xs backdrop-blur-sm" aria-live="polite">
+        <div
+          className="pointer-events-none absolute bottom-16 left-4 rounded-sm border border-primary/40 bg-card/90 px-3 py-2 font-mono text-xs backdrop-blur-sm"
+          aria-live="polite"
+        >
           {(() => {
             const plan = g.wallPlan(wallDraft.x1, wallDraft.y1, wallDraft.x2, wallDraft.y2);
-            return plan.valid
-              ? <><p className="text-primary">Continuous wall · {plan.buildable.length} new segments</p><p className="mt-1 text-muted-foreground">Release to build · up to {plan.buildable.length * COST.wall} credits, charged as built</p></>
-              : <><p className="text-destructive">Wall blocked · nothing will be built</p><p className="mt-1 text-muted-foreground">Redraw so every outlined segment is clear and connected.</p></>;
+            return plan.valid ? (
+              <>
+                <p className="text-primary">Continuous wall · {plan.buildable.length} new segments</p>
+                <p className="mt-1 text-muted-foreground">
+                  Release to build · up to {plan.buildable.length * COST.wall} credits, charged as built
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-destructive">Wall blocked · nothing will be built</p>
+                <p className="mt-1 text-muted-foreground">Redraw so every outlined segment is clear and connected.</p>
+              </>
+            );
           })()}
         </div>
       )}
@@ -246,9 +327,32 @@ export function BeachheadGame() {
   );
 }
 
-function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission, zoom, applyZoom, resetView, openBriefing }: {
-  g: Game; mode: Mode; setMode: (m: Mode) => void; mute: boolean; toggleMute: () => void; fmt: (s: number) => string; restart: () => void; continueMission: () => void;
-  zoom: number; applyZoom: (next: number) => void; resetView: () => void; openBriefing: () => void;
+function Hud({
+  g,
+  mode,
+  setMode,
+  mute,
+  toggleMute,
+  fmt,
+  restart,
+  continueMission,
+  zoom,
+  applyZoom,
+  resetView,
+  openBriefing,
+}: {
+  g: Game;
+  mode: Mode;
+  setMode: (m: Mode) => void;
+  mute: boolean;
+  toggleMute: () => void;
+  fmt: (s: number) => string;
+  restart: () => void;
+  continueMission: () => void;
+  zoom: number;
+  applyZoom: (next: number) => void;
+  resetView: () => void;
+  openBriefing: () => void;
 }) {
   const hold = g.phase === "playing" ? g.holdTime() : 0;
   const soldiers = g.infantry.reduce((a, p) => a + p.soldiers, 0);
@@ -257,13 +361,24 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
   const completedWalls = g.walls.filter((w) => w.built >= 1).length;
   const selectedInfantry = g.infantry.find((unit) => unit.id === g.selected);
   const selectedEngineer = g.engineers.find((unit) => unit.id === g.selected);
-  const selectedName = selectedInfantry?.kind === "squad" ? "Squad" : selectedInfantry ? "Team" : selectedEngineer?.kind === "team" ? "Engineer Team" : selectedEngineer ? "Engineer" : null;
+  const selectedName =
+    selectedInfantry?.kind === "squad"
+      ? "Squad"
+      : selectedInfantry
+        ? "Team"
+        : selectedEngineer?.kind === "team"
+          ? "Engineer Team"
+          : selectedEngineer
+            ? "Engineer"
+            : null;
   return (
     <>
       {/* top bar */}
       <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-background/85 to-transparent px-5 pb-8 pt-3">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary">Mobile Infantry // Operation Beachhead</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary">
+            Mobile Infantry // Operation Beachhead
+          </p>
           <h1 className="font-display text-3xl uppercase leading-none tracking-wide">Beachhead</h1>
         </div>
         <p className="mt-2 max-w-md text-center font-mono text-sm text-foreground/90">{g.message}</p>
@@ -271,21 +386,32 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
           <TopStat label="Level" value={g.level === 1 ? "1 · LZ" : "2 · Ship"} />
           <TopStat label="Credits" value={Math.floor(g.credits)} accent />
           <TopStat label="Time" value={fmt(g.t)} />
-          <TopStat label="Horde" value={g.phase === "playing" ? `${g.wave} · ${Math.max(0, Math.ceil(g.nextHorde - g.t))}s` : "—"} />
-          <button onClick={toggleMute} className="hud-btn self-center px-2 py-1 text-xs" aria-label="Toggle sound">{mute ? "Sound off" : "Sound on"} [M]</button>
+          <TopStat
+            label="Horde"
+            value={g.phase === "playing" ? `${g.wave} · ${Math.max(0, Math.ceil(g.nextHorde - g.t))}s` : "—"}
+          />
+          <button onClick={toggleMute} className="hud-btn self-center px-2 py-1 text-xs" aria-label="Toggle sound">
+            {mute ? "Sound off" : "Sound on"} [M]
+          </button>
         </div>
       </header>
 
       {/* right sidebar */}
       <aside className="absolute bottom-4 right-4 top-20 flex w-52 flex-col gap-2 overflow-y-auto font-mono text-sm">
         <div className="hud-panel bg-card/80 backdrop-blur-sm" aria-label="Battle status">
-          <Stat label={g.hasCruiser ? "Command cruiser" : "LZ core"} value={`${Math.max(0, Math.ceil(g.core.hp))}/${g.core.max}`} />
+          <Stat
+            label={g.hasCruiser ? "Command cruiser" : "LZ core"}
+            value={`${Math.max(0, Math.ceil(g.core.hp))}/${g.core.max}`}
+          />
           <div className="mt-1 grid grid-cols-2 gap-x-3 border-t border-border/60 pt-1">
             <CompactStat label="Troopers" value={soldiers} />
             <CompactStat label="Bugs" value={g.bugs.length} />
             <CompactStat label="Teams/squads" value={`${teamCount} / ${squadCount}`} />
             <CompactStat label={g.hasCruiser ? "Eng. teams" : "Engineers"} value={g.engineers.length} />
-            <CompactStat label="Towers (+build)" value={`${g.towers.filter((t) => t.built >= 1).length} (+${g.towers.filter((t) => t.built < 1).length})`} />
+            <CompactStat
+              label="Towers (+build)"
+              value={`${g.towers.filter((t) => t.built >= 1).length} (+${g.towers.filter((t) => t.built < 1).length})`}
+            />
             {g.hasCruiser && <CompactStat label="Walls done/all" value={`${completedWalls} / ${g.walls.length}`} />}
           </div>
         </div>
@@ -293,7 +419,10 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
           <div className="hud-panel bg-card/80 backdrop-blur-sm">
             <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">Hold the line</p>
             <div className="h-2 w-full overflow-hidden rounded-sm bg-muted">
-              <div className="h-full bg-success transition-all" style={{ width: `${Math.min(100, (hold / HOLD_NEEDED) * 100)}%` }} />
+              <div
+                className="h-full bg-success transition-all"
+                style={{ width: `${Math.min(100, (hold / HOLD_NEEDED) * 100)}%` }}
+              />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {fmt(hold)} / {fmt(HOLD_NEEDED)} without casualties
@@ -303,47 +432,110 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
         ) : (
           <div className="hud-panel bg-card/80 backdrop-blur-sm" aria-label="Landing zone objective">
             <p className="text-xs uppercase tracking-widest text-primary">Secure the landing zone</p>
-            <p className={`mt-2 text-sm ${g.perimeter.sealed ? "text-success" : "text-foreground"}`}>{g.perimeter.sealed ? "Perimeter sealed" : "Perimeter open"}</p>
+            <p className={`mt-2 text-sm ${g.perimeter.sealed ? "text-success" : "text-foreground"}`}>
+              {g.perimeter.sealed ? "Perimeter sealed" : "Perimeter open"}
+            </p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               {g.perimeter.sealed
-                ? g.perimeter.enemiesInside ? `Clear ${g.perimeter.enemiesInside} ${g.perimeter.enemiesInside === 1 ? "enemy" : "enemies"} inside.` : "Perimeter clear. Securing landing zone…"
+                ? g.perimeter.enemiesInside
+                  ? `Clear ${g.perimeter.enemiesInside} ${g.perimeter.enemiesInside === 1 ? "enemy" : "enemies"} inside.`
+                  : "Perimeter clear. Securing landing zone…"
                 : "Seal with walls or rock; clear enemies inside."}
             </p>
           </div>
         )}
         <div className="flex flex-col gap-2">
-          <button disabled={g.phase !== "playing"} className={`hud-btn backdrop-blur-sm ${mode === "infantry" ? "hud-btn-active" : "bg-secondary/85"}`} onClick={() => setMode(mode === "infantry" ? "select" : "infantry")}>
-            <span>[1] {g.hasCruiser ? "Drop Squad" : "Drop Team"}</span><span>{g.hasCruiser ? COST.squad : COST.team}</span>
+          <button
+            disabled={g.phase !== "playing"}
+            className={`hud-btn backdrop-blur-sm ${mode === "infantry" ? "hud-btn-active" : "bg-secondary/85"}`}
+            onClick={() => setMode(mode === "infantry" ? "select" : "infantry")}
+          >
+            <span>[1] {g.hasCruiser ? "Drop Squad" : "Drop Team"}</span>
+            <span>{g.hasCruiser ? COST.squad : COST.team}</span>
           </button>
-          <button disabled={g.phase !== "playing"} className="hud-btn bg-secondary/85 backdrop-blur-sm" onClick={() => g.trainEngineer()}>
-            <span>[2] {g.hasCruiser ? "Engineer Team" : "Engineer"}</span><span>{g.hasCruiser ? COST.engineerTeam : COST.engineer}</span>
+          <button
+            disabled={g.phase !== "playing"}
+            className="hud-btn bg-secondary/85 backdrop-blur-sm"
+            onClick={() => g.trainEngineer()}
+          >
+            <span>[2] {g.hasCruiser ? "Engineer Team" : "Engineer"}</span>
+            <span>{g.hasCruiser ? COST.engineerTeam : COST.engineer}</span>
           </button>
-          <button disabled={g.phase !== "playing"} className={`hud-btn backdrop-blur-sm ${mode === "tower" ? "hud-btn-active" : "bg-secondary/85"}`} onClick={() => setMode(mode === "tower" ? "select" : "tower")}>
-            <span>[3] MG tower</span><span>{COST.tower}</span>
+          <button
+            disabled={g.phase !== "playing"}
+            className={`hud-btn backdrop-blur-sm ${mode === "tower" ? "hud-btn-active" : "bg-secondary/85"}`}
+            onClick={() => setMode(mode === "tower" ? "select" : "tower")}
+          >
+            <span>[3] MG tower</span>
+            <span>{COST.tower}</span>
           </button>
           {g.hasCruiser && (
-            <button disabled={g.phase !== "playing"} className={`hud-btn backdrop-blur-sm ${mode === "wall" ? "hud-btn-active" : "bg-secondary/85"}`} onClick={() => setMode(mode === "wall" ? "select" : "wall")} aria-label="Build Wall">
-              <span>[4] Build Wall</span><span>{COST.wall}/seg</span>
+            <button
+              disabled={g.phase !== "playing"}
+              className={`hud-btn backdrop-blur-sm ${mode === "wall" ? "hud-btn-active" : "bg-secondary/85"}`}
+              onClick={() => setMode(mode === "wall" ? "select" : "wall")}
+              aria-label="Build Wall"
+            >
+              <span>[4] Build Wall</span>
+              <span>{COST.wall}/seg</span>
             </button>
           )}
         </div>
-        <button className="hud-btn mt-auto bg-card/80 text-xs backdrop-blur-sm" onClick={openBriefing} aria-label="Open field manual">
-          <span>Field manual</span><span>[?]</span>
+        <button
+          className="hud-btn mt-auto bg-card/80 text-xs backdrop-blur-sm"
+          onClick={openBriefing}
+          aria-label="Open field manual"
+        >
+          <span>Field manual</span>
+          <span>[?]</span>
         </button>
       </aside>
 
       {selectedName && (
-        <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-sm border border-primary/50 bg-card/90 px-3 py-1.5 font-mono text-xs backdrop-blur-sm" aria-live="polite">
-          <span>Selected: <strong className="text-primary">{selectedName}</strong></span>
-          <button className="hud-btn px-2 py-1" onClick={() => g.unselect()} aria-label="Unselect unit">Unselect [Esc]</button>
+        <div
+          className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-sm border border-primary/50 bg-card/90 px-3 py-1.5 font-mono text-xs backdrop-blur-sm"
+          aria-live="polite"
+        >
+          <span>
+            Selected: <strong className="text-primary">{selectedName}</strong>
+          </span>
+          <button className="hud-btn px-2 py-1" onClick={() => g.unselect()} aria-label="Unselect unit">
+            Unselect [Esc]
+          </button>
         </div>
       )}
 
-      <div className="absolute bottom-4 left-4 flex items-center gap-1 rounded-sm border border-border bg-card/80 p-1 font-mono text-xs backdrop-blur-sm" aria-label="Map zoom controls">
-        <button className="hud-btn justify-center px-3 py-1" onClick={() => applyZoom(zoom / 1.25)} disabled={zoom <= 1} aria-label="Zoom out">−</button>
-        <output className="w-12 text-center" aria-live="polite">{Math.round(zoom * 100)}%</output>
-        <button className="hud-btn justify-center px-3 py-1" onClick={() => applyZoom(zoom * 1.25)} disabled={zoom >= 3} aria-label="Zoom in">+</button>
-        <button className="hud-btn justify-center px-2 py-1" onClick={resetView} disabled={zoom === 1} aria-label="Reset zoom">Reset</button>
+      <div
+        className="absolute bottom-4 left-4 flex items-center gap-1 rounded-sm border border-border bg-card/80 p-1 font-mono text-xs backdrop-blur-sm"
+        aria-label="Map zoom controls"
+      >
+        <button
+          className="hud-btn justify-center px-3 py-1"
+          onClick={() => applyZoom(zoom / 1.25)}
+          disabled={zoom <= 1}
+          aria-label="Zoom out"
+        >
+          −
+        </button>
+        <output className="w-12 text-center" aria-live="polite">
+          {Math.round(zoom * 100)}%
+        </output>
+        <button
+          className="hud-btn justify-center px-3 py-1"
+          onClick={() => applyZoom(zoom * 1.25)}
+          disabled={zoom >= 3}
+          aria-label="Zoom in"
+        >
+          +
+        </button>
+        <button
+          className="hud-btn justify-center px-2 py-1"
+          onClick={resetView}
+          disabled={zoom === 1}
+          aria-label="Reset zoom"
+        >
+          Reset
+        </button>
       </div>
 
       {g.phase === "landing" && (
@@ -354,21 +546,38 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
       {g.phase === "shipLanding" && (
         <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded-sm border border-primary/40 bg-background/85 px-4 py-2 text-center font-mono text-sm text-primary">
           Level 2 · Click a rock-free 7×7 sector to land the command cruiser
-          <span className="mt-1 block text-xs text-muted-foreground">Installations beneath the ship are removed · survivors and other defenses carry over</span>
+          <span className="mt-1 block text-xs text-muted-foreground">
+            Installations beneath the ship are removed · survivors and other defenses carry over
+          </span>
         </div>
       )}
       {(g.phase === "won" || g.phase === "lost") && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-background/75">
           <h2 className={`font-display text-6xl uppercase ${g.phase === "won" ? "text-success" : "text-destructive"}`}>
-            {g.phase === "won" ? g.level === 2 ? "Landing Zone Secured" : "Beachhead Secured" : "Overrun"}
+            {g.phase === "won" ? (g.level === 2 ? "Landing Zone Secured" : "Beachhead Secured") : "Overrun"}
           </h2>
           <p className="font-mono text-sm text-muted-foreground">
             Survived {fmt(g.t)} · {g.kills} bugs killed · {g.deaths} troopers lost
           </p>
-          {g.phase === "won" && <p className="max-w-md text-center font-mono text-sm text-foreground">{g.level === 2 ? "The cruiser is encircled and every enemy inside the perimeter has been eliminated." : "Level 1 complete. Bring in a command cruiser, relocate your base, and fortify its landing zone."}</p>}
+          {g.phase === "won" && (
+            <p className="max-w-md text-center font-mono text-sm text-foreground">
+              {g.level === 2
+                ? "The cruiser is encircled and every enemy inside the perimeter has been eliminated."
+                : "Level 1 complete. Bring in a command cruiser, relocate your base, and fortify its landing zone."}
+            </p>
+          )}
           <div className="flex gap-2">
-            {g.phase === "won" && g.level === 1 && <button onClick={continueMission} className="hud-btn hud-btn-primary">Continue to Level 2</button>}
-            <button onClick={restart} className={`hud-btn ${g.phase === "lost" || g.level === 2 ? "hud-btn-primary" : ""}`}>New drop</button>
+            {g.phase === "won" && g.level === 1 && (
+              <button onClick={continueMission} className="hud-btn hud-btn-primary">
+                Continue to Level 2
+              </button>
+            )}
+            <button
+              onClick={restart}
+              className={`hud-btn ${g.phase === "lost" || g.level === 2 ? "hud-btn-primary" : ""}`}
+            >
+              New drop
+            </button>
           </div>
         </div>
       )}
@@ -376,36 +585,84 @@ function Hud({ g, mode, setMode, mute, toggleMute, fmt, restart, continueMission
   );
 }
 
-function FieldManual({ g, fmt, introduction, onClose }: { g: Game; fmt: (s: number) => string; introduction: boolean; onClose: () => void }) {
+function FieldManual({
+  g,
+  fmt,
+  introduction,
+  onClose,
+}: {
+  g: Game;
+  fmt: (s: number) => string;
+  introduction: boolean;
+  onClose: () => void;
+}) {
   const [showDetails, setShowDetails] = useState(false);
   const levelTwo = g.level === 2;
   const starting = g.phase === "landing" || g.phase === "shipLanding";
   if (starting && !showDetails) {
     return (
       <div className="absolute inset-0 z-30 flex items-center justify-center overflow-y-auto bg-background/80 px-6 py-8 sm:px-12">
-        <section className="my-auto w-full max-w-2xl text-center" role="dialog" aria-modal="true" aria-labelledby="opening-title">
+        <section
+          className="my-auto w-full max-w-2xl text-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="opening-title"
+        >
           {!introduction && <p className="mb-4 font-mono text-sm uppercase text-primary">Level {g.level}</p>}
-          <h2 id="opening-title" className={`font-display uppercase leading-none ${introduction ? "text-7xl sm:text-8xl" : "text-5xl sm:text-7xl"}`}>{introduction ? "Beachhead" : levelTwo ? "Secure the cruiser" : "Hold the beachhead"}</h2>
-          {introduction ? <>
-            <p className="mx-auto mt-6 max-w-lg text-base leading-relaxed text-foreground/90 sm:text-lg">Command a desperate landing force against an endless arachnid swarm.</p>
-            <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base">Drop infantry, protect your engineers, and turn a hostile desert into a permanent defensive position before your troops are overrun.</p>
-            <div className="mt-8 flex justify-center gap-8 border-y border-border/70 py-5" aria-hidden="true">
-              <Crosshair className="size-8 text-destructive" strokeWidth={1.5} />
-              <Shield className="size-8 text-primary" strokeWidth={1.5} />
-              <TowerControl className="size-8 text-success" strokeWidth={1.5} />
-            </div>
-          </> : <>
-            {levelTwo ? <Shield className="mx-auto mt-8 size-10 text-primary" strokeWidth={1.5} aria-hidden="true" /> : <TowerControl className="mx-auto mt-8 size-10 text-success" strokeWidth={1.5} aria-hidden="true" />}
-            <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-foreground/90 sm:text-lg">{levelTwo ? "Build walls around your cruiser to form a base. Clear any bugs trapped inside." : "Keep your infantry alive long enough for your defenses to stabilize the line."}</p>
-            <p className="mx-auto mt-7 max-w-md border-t border-border/70 pt-5 text-sm leading-relaxed text-muted-foreground"><span className="text-primary">Tip: </span>{levelTwo ? "Forward-deploy larger squads to protect the wall builders." : "Once machine gun towers are built, pull soldiers behind them."}</p>
-          </>}
+          <h2
+            id="opening-title"
+            className={`font-display uppercase leading-none ${introduction ? "text-7xl sm:text-8xl" : "text-5xl sm:text-7xl"}`}
+          >
+            {introduction ? "Beachhead" : levelTwo ? "Secure the cruiser" : "Hold the beachhead"}
+          </h2>
+          {introduction ? (
+            <>
+              <p className="mx-auto mt-6 max-w-lg text-base leading-relaxed text-foreground/90 sm:text-lg">
+                Command a desperate landing force against an endless arachnid swarm.
+              </p>
+              <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base">
+                Drop infantry, protect your engineers, and turn a hostile desert into a permanent defensive position
+                before your troops are overrun.
+              </p>
+              <div className="mt-8 flex justify-center gap-8 border-y border-border/70 py-5" aria-hidden="true">
+                <Crosshair className="size-8 text-destructive" strokeWidth={1.5} />
+                <Shield className="size-8 text-primary" strokeWidth={1.5} />
+                <TowerControl className="size-8 text-success" strokeWidth={1.5} />
+              </div>
+            </>
+          ) : (
+            <>
+              {levelTwo ? (
+                <Shield className="mx-auto mt-8 size-10 text-primary" strokeWidth={1.5} aria-hidden="true" />
+              ) : (
+                <TowerControl className="mx-auto mt-8 size-10 text-success" strokeWidth={1.5} aria-hidden="true" />
+              )}
+              <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-foreground/90 sm:text-lg">
+                {levelTwo
+                  ? "Build walls around your cruiser to form a base. Clear any bugs trapped inside."
+                  : "Keep your infantry alive long enough for your defenses to stabilize the line."}
+              </p>
+              <p className="mx-auto mt-7 max-w-md border-t border-border/70 pt-5 text-sm leading-relaxed text-muted-foreground">
+                <span className="text-primary">Tip: </span>
+                {levelTwo
+                  ? "Forward-deploy larger squads to protect the wall builders."
+                  : "Once machine gun towers are built, pull soldiers behind them."}
+              </p>
+            </>
+          )}
           <div className="mt-8 flex flex-col items-center gap-3">
-            <Button key={introduction ? "game" : `level-${g.level}`} autoFocus size="lg" className="h-12 w-full max-w-64 font-mono uppercase" onClick={onClose}>{introduction ? "Play" : levelTwo ? "Land cruiser" : "Land troops"} <ArrowRight aria-hidden="true" /></Button>
-            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowDetails(true)}><BookOpen aria-hidden="true" /> How to play</Button>
-            <div class="text-center text-xs text-neutral-500 dark:text-neutral-400">
-  Beachhead 0.1.0-beta<br>
-  Copyright 2026 <a href="https://x.com/jarikuikanmaki" target="_blank" rel="noopener noreferrer" class="underline hover:text-neutral-700 dark:hover:text-neutral-200">Jari Kuikanmäki</a>
-</div>
+            <Button
+              key={introduction ? "game" : `level-${g.level}`}
+              autoFocus
+              size="lg"
+              className="h-12 w-full max-w-64 font-mono uppercase"
+              onClick={onClose}
+            >
+              {introduction ? "Play" : levelTwo ? "Land cruiser" : "Land troops"} <ArrowRight aria-hidden="true" />
+            </Button>
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowDetails(true)}>
+              <BookOpen aria-hidden="true" /> How to play
+            </Button>
           </div>
         </section>
       </div>
@@ -413,13 +670,26 @@ function FieldManual({ g, fmt, introduction, onClose }: { g: Game; fmt: (s: numb
   }
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
-      <section className="max-h-full w-full max-w-3xl overflow-y-auto rounded-sm border border-primary/40 bg-card/95 p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="field-manual-title">
+      <section
+        className="max-h-full w-full max-w-3xl overflow-y-auto rounded-sm border border-primary/40 bg-card/95 p-5 shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="field-manual-title"
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-primary">{starting ? `Level ${g.level} briefing` : "Field manual · Battle paused"}</p>
-            <h2 id="field-manual-title" className="mt-1 font-display text-3xl uppercase tracking-wide">{levelTwo ? "Secure the cruiser" : "Establish the beachhead"}</h2>
+            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-primary">
+              {starting ? `Level ${g.level} briefing` : "Field manual · Battle paused"}
+            </p>
+            <h2 id="field-manual-title" className="mt-1 font-display text-3xl uppercase tracking-wide">
+              {levelTwo ? "Secure the cruiser" : "Establish the beachhead"}
+            </h2>
           </div>
-          {!starting && <button className="hud-btn px-2 py-1 font-mono text-xs" onClick={onClose} aria-label="Close field manual">Close [Esc]</button>}
+          {!starting && (
+            <button className="hud-btn px-2 py-1 font-mono text-xs" onClick={onClose} aria-label="Close field manual">
+              Close [Esc]
+            </button>
+          )}
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           {levelTwo
@@ -429,18 +699,35 @@ function FieldManual({ g, fmt, introduction, onClose }: { g: Game; fmt: (s: numb
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           <ManualPanel title="Command">
             <p>Click a unit to select; left-click ground to move it. Right-click or Esc unselects.</p>
-            <p>[1] Drop {levelTwo ? "Squad" : "Team"} · [2] {levelTwo ? "Engineer Team" : "Engineer"} · [3] MG Tower{levelTwo ? " · [4] Build Wall" : ""}</p>
+            <p>
+              [1] Drop {levelTwo ? "Squad" : "Team"} · [2] {levelTwo ? "Engineer Team" : "Engineer"} · [3] MG Tower
+              {levelTwo ? " · [4] Build Wall" : ""}
+            </p>
             <p>Shift-click placement to repeat. New movable units are selected automatically.</p>
           </ManualPanel>
           <ManualPanel title="Construction">
             <p>Engineers automatically build marked towers.</p>
-            {levelTwo && <p>Drag a wall line; engineer teams build from start to finish. Each segment costs {COST.wall} credits.</p>}
+            {levelTwo && (
+              <p>
+                Drag a wall line; engineer teams build from start to finish. Each segment costs {COST.wall} credits.
+              </p>
+            )}
             <p>If a builder dies, unfinished work is cancelled. Completed wall segments remain.</p>
           </ManualPanel>
           <ManualPanel title="Terrain">
-            <p><span className="text-primary">Light tan high ground</span> extends range, reduces damage taken, and slows bugs.</p>
-            <p>Sheer rock is impassable{levelTwo ? " and can form part of the cruiser perimeter" : "; infantry must go around it"}.</p>
-            {levelTwo && <p>The cruiser removes installations beneath its landing footprint; troops and defenses outside carry over.</p>}
+            <p>
+              <span className="text-primary">Light tan high ground</span> extends range, reduces damage taken, and slows
+              bugs.
+            </p>
+            <p>
+              Sheer rock is impassable
+              {levelTwo ? " and can form part of the cruiser perimeter" : "; infantry must go around it"}.
+            </p>
+            {levelTwo && (
+              <p>
+                The cruiser removes installations beneath its landing footprint; troops and defenses outside carry over.
+              </p>
+            )}
           </ManualPanel>
           <ManualPanel title="View & sound">
             <p>Scroll to zoom around the cursor. Drag to pan while zoomed; press 0 to reset.</p>
@@ -449,8 +736,18 @@ function FieldManual({ g, fmt, introduction, onClose }: { g: Game; fmt: (s: numb
           </ManualPanel>
         </div>
         <div className="mt-5 flex items-center justify-between gap-4 border-t border-border/60 pt-4">
-          <p className="font-mono text-xs text-muted-foreground">{starting ? "Review the briefing, then choose your landing site." : "The simulation is paused while this manual is open."}</p>
-          <Button autoFocus className="shrink-0 font-mono uppercase" onClick={() => starting ? setShowDetails(false) : onClose()}>{starting ? "Back" : "Return to battle"}</Button>
+          <p className="font-mono text-xs text-muted-foreground">
+            {starting
+              ? "Review the briefing, then choose your landing site."
+              : "The simulation is paused while this manual is open."}
+          </p>
+          <Button
+            autoFocus
+            className="shrink-0 font-mono uppercase"
+            onClick={() => (starting ? setShowDetails(false) : onClose())}
+          >
+            {starting ? "Back" : "Return to battle"}
+          </Button>
         </div>
       </section>
     </div>
