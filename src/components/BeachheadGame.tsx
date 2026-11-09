@@ -402,6 +402,10 @@ function FieldManual({ g, fmt, introduction, onClose }: { g: Game; fmt: (s: numb
           <div className="mt-8 flex flex-col items-center gap-3">
             <Button key={introduction ? "game" : `level-${g.level}`} autoFocus size="lg" className="h-12 w-full max-w-64 font-mono uppercase" onClick={onClose}>{introduction ? "Play" : levelTwo ? "Land cruiser" : "Land troops"} <ArrowRight aria-hidden="true" /></Button>
             <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowDetails(true)}><BookOpen aria-hidden="true" /> How to play</Button>
+            <div class="text-center text-xs text-neutral-500 dark:text-neutral-400">
+  Beachhead 0.1.0-beta<br>
+  Copyright 2026 <a href="https://x.com/jarikuikanmaki" target="_blank" rel="noopener noreferrer" class="underline hover:text-neutral-700 dark:hover:text-neutral-200">Jari Kuikanmäki</a>
+</div>
           </div>
         </section>
       </div>
