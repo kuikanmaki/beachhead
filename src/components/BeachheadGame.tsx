@@ -664,6 +664,10 @@ function FieldManual({
               <BookOpen aria-hidden="true" /> How to play
             </Button>
           </div>
+          <div class="text-center text-xs text-neutral-500 dark:text-neutral-400">
+  Beachhead 0.1.0-beta<br>
+  Copyright 2026 <a href="https://x.com/jarikuikanmaki" target="_blank" rel="noopener noreferrer" class="underline hover:text-neutral-700 dark:hover:text-neutral-200">Jari Kuikanmäki</a>
+</div>
         </section>
       </div>
     );
