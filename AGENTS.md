@@ -14,3 +14,4 @@
 - Process engineer deaths and construction cancellation before assigning or advancing construction in the simulation; dead builders must never finish work or hand cancelled projects to replacements.
 - Keep the Level 1 opening separate from optional field-manual details and hide the battle HUD during the opening; players should reach landing without mandatory detailed instructions.
 - All troop types share the existing pathfinder, movement orders, and waypoint advancement in the engine; engineer construction travel uses them too, preventing terrain bypasses.
+- Engineer post-construction orders use the shared movement pipeline and finish before the next automatic job; explicit player orders override them so retreat cannot hijack manual control.
