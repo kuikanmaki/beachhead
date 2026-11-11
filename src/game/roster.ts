@@ -117,7 +117,7 @@ const SURNAMES = [
 const STORAGE_KEY = "beachhead.campaignRoster.v1";
 
 export function rankOf(id: RankId): Rank {
-  return RANKS.find((r) => r.id === id) ?? RANKS[0];
+  return RANKS.find((r) => r.id === id) ?? RANKS[0]!;
 }
 
 export function medalOf(id: MedalId): Medal {
@@ -180,7 +180,7 @@ function nextSurname(roster: CampaignRoster, serial: number): string {
   const used = new Set(roster.soldiers.filter((s) => s.status === "active").map((s) => s.surname));
   const free = SURNAMES.filter((n) => !used.has(n));
   const pool = free.length ? free : SURNAMES;
-  return pool[serial % pool.length];
+  return pool[serial % pool.length]!;
 }
 
 function startingRank(kind: "team" | "squad"): RankId {
