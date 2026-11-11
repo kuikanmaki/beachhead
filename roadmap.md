@@ -1,6 +1,6 @@
 # Current update
 
-- [ ] Copyright line under "How to play" on the opening page, linking to X.
+- [x] Copyright line under "How to play" on the opening page, linking to X.
 - [ ] Switch to the user's updated GitHub version and publish it (waiting on the code).
 
 - [x] Separate the game introduction and both level start screens; verified progression, optional help, desktop/mobile layouts, and all 67 tests.

@@ -663,6 +663,14 @@ function FieldManual({
             <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowDetails(true)}>
               <BookOpen aria-hidden="true" /> How to play
             </Button>
+            {introduction && (
+              <p className="mt-4 font-mono text-[11px] text-muted-foreground">
+                Copyright 2026{" "}
+                <a href="https://x.com/jarikuikanmaki" target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:text-primary hover:underline">
+                  Jari Kuikanmäki
+                </a>
+              </p>
+            )}
           </div>
         </section>
       </div>
