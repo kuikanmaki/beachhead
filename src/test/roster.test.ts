@@ -19,7 +19,7 @@ describe("campaign roster", () => {
   it("assigns a ranked surname to each new infantry unit", () => {
     const g = new Game(42, { freshCampaign: true });
     expect(g.land(20, 16)).toBe(true);
-    const unit = g.infantry[0];
+    const unit = g.infantry[0]!;
     expect(unit.leaderId).toBeTruthy();
     const leader = g.campaign.soldiers.find((s) => s.id === unit.leaderId);
     expect(leader).toBeTruthy();
@@ -31,7 +31,7 @@ describe("campaign roster", () => {
   it("counts fallen soldiers per level and across the campaign", () => {
     const g = new Game(7, { freshCampaign: true });
     g.land(18, 14);
-    const unit = g.infantry[0];
+    const unit = g.infantry[0]!;
     const before = unit.soldiers;
     g.killSoldier(unit);
     expect(unit.soldiers).toBe(before - 1);
