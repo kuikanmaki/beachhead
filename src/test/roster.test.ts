@@ -76,15 +76,15 @@ describe("campaign roster", () => {
     const awards = resolveAfterAction(roster, units, 1, true, () => 0); // always promote
     expect(awards.some((a) => a.kind === "medal")).toBe(true);
     expect(awards.some((a) => a.kind === "promotion")).toBe(true);
-    expect(roster.soldiers[0].medals.length).toBeGreaterThan(0);
-    expect(rankOf(roster.soldiers[0].rank).order).toBeGreaterThan(rankOf("corporal").order);
-    expect(activeLeaders(roster)[0].surname).toBe("Rico");
+    expect(roster.soldiers[0]!.medals.length).toBeGreaterThan(0);
+    expect(rankOf(roster.soldiers[0]!.rank).order).toBeGreaterThan(rankOf("corporal").order);
+    expect(activeLeaders(roster)[0]!.surname).toBe("Rico");
   });
 
   it("carries the campaign roster into level 2", () => {
     const g = new Game(99, { freshCampaign: true });
     g.land(22, 15);
-    const leaderId = g.infantry[0].leaderId;
+    const leaderId = g.infantry[0]!.leaderId;
     g.phase = "won";
     g.resolveCampaignOutcome(true);
     expect(g.continueToCruiser()).toBe(true);
