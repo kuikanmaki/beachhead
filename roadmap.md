@@ -1,7 +1,8 @@
 # Current update
 
-- [x] Copyright line under "How to play" on the opening page, linking to X.
-- [ ] Switch to the user's updated GitHub version and publish it (waiting on the code).
+- [x] Engineer teams pull back behind a wall only after the full drawn line is complete, not after each segment.
+- [x] Campaign roster: named leaders with ranks and surnames, per-level fallen counts, decorations and promotions for units that survive costly fights; roster UI and regression tests.
+- [x] Visual polish: richer desert atmosphere (sun wash, scrub, deeper vignette), leader chevrons, movement dust, without rewriting core combat/build systems.
 
 - [x] Separate the game introduction and both level start screens; verified progression, optional help, desktop/mobile layouts, and all 67 tests.
 

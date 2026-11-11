@@ -106,12 +106,29 @@ function buildTerrain(g: Game) {
     x.fillStyle = `rgba(${90 + rnd() * 50},${60 + rnd() * 30},${40 + rnd() * 20},0.95)`; x.beginPath(); x.ellipse(cx, cy, r, r * 0.75, rnd() * 3, 0, TAU); x.fill();
     x.fillStyle = "rgba(255,230,190,0.18)"; x.beginPath(); x.arc(cx - r * 0.3, cy - r * 0.3, r * 0.4, 0, TAU); x.fill();
   }
-  // warm haze grade
+  // warm haze grade + desert sun wash
   x.globalCompositeOperation = "soft-light";
   const haze = x.createLinearGradient(0, 0, PW, PH);
   haze.addColorStop(0, "rgba(255,190,120,0.35)"); haze.addColorStop(1, "rgba(60,30,60,0.35)");
   x.fillStyle = haze; x.fillRect(0, 0, PW, PH);
+  x.globalCompositeOperation = "overlay";
+  const sun = x.createRadialGradient(PW * 0.18, PH * 0.12, 0, PW * 0.18, PH * 0.12, PW * 0.55);
+  sun.addColorStop(0, "rgba(255,210,140,0.45)");
+  sun.addColorStop(0.45, "rgba(255,160,80,0.12)");
+  sun.addColorStop(1, "rgba(0,0,0,0)");
+  x.fillStyle = sun; x.fillRect(0, 0, PW, PH);
   x.globalCompositeOperation = "source-over";
+  // Sparse scrub / dry grass flecks for terrain texture
+  for (let k = 0; k < 220; k++) {
+    const cx = rnd() * PW, cy = rnd() * PH, i = Math.floor(cy) * PW + Math.floor(cx);
+    if (rk[i] > 0.15 || hi[i] < 0.15) continue;
+    x.strokeStyle = `rgba(${70 + rnd() * 40},${90 + rnd() * 35},${40 + rnd() * 20},0.55)`;
+    x.lineWidth = 1;
+    x.beginPath();
+    x.moveTo(cx, cy);
+    x.lineTo(cx + (rnd() - 0.5) * 4, cy - 2 - rnd() * 4);
+    x.stroke();
+  }
   return c;
 }
 
@@ -120,9 +137,20 @@ function getVignette() {
   if (vignette && vignette.width === PW && vignette.height === PH) return vignette;
   const c = document.createElement("canvas"); c.width = PW; c.height = PH;
   const x = c.getContext("2d")!;
-  const g = x.createRadialGradient(PW / 2, PH / 2, PH * 0.35, PW / 2, PH / 2, PW * 0.62);
-  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(10,4,0,0.55)");
+  const g = x.createRadialGradient(PW / 2, PH / 2, PH * 0.28, PW / 2, PH / 2, PW * 0.68);
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(0.65, "rgba(12,5,0,0.28)");
+  g.addColorStop(1, "rgba(8,3,0,0.72)");
   x.fillStyle = g; x.fillRect(0, 0, PW, PH);
+  // Subtle film grain for immersion
+  const img = x.getImageData(0, 0, PW, PH), d = img.data;
+  for (let i = 0; i < d.length; i += 16) {
+    const n = (Math.random() - 0.5) * 18;
+    d[i] = Math.max(0, Math.min(255, d[i] + n));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n * 0.8));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n * 0.5));
+  }
+  x.putImageData(img, 0, 0);
   return (vignette = c);
 }
 
@@ -162,17 +190,43 @@ function bar(c: CanvasRenderingContext2D, x: number, y: number, f: number, w: nu
   c.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, f)), h);
 }
 
-function trooper(c: CanvasRenderingContext2D, x: number, y: number, ang: number, armor: string, pack: string, flash: boolean, sel: boolean) {
+function trooper(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  ang: number,
+  armor: string,
+  pack: string,
+  flash: boolean,
+  sel: boolean,
+  leader = false,
+) {
   shadow(c, x, y, 0.15, 0.11, 0.4);
   c.save(); c.translate(x, y); c.rotate(ang);
+  // Boots / legs silhouette for a slightly more grounded figure.
+  c.fillStyle = "rgba(20,16,12,0.85)";
+  c.fillRect(-0.05, 0.08, 0.04, 0.08);
+  c.fillRect(0.02, 0.08, 0.04, 0.08);
   c.strokeStyle = "#16181a"; c.lineWidth = 0.05; c.lineCap = "round";
   c.beginPath(); c.moveTo(0.02, 0.06); c.lineTo(0.27, 0.05); c.stroke();
   c.fillStyle = pack; c.fillRect(-0.15, -0.075, 0.07, 0.15);
   c.fillStyle = armor; c.beginPath(); c.ellipse(0, 0, 0.1, 0.15, 0, 0, TAU); c.fill();
-  c.strokeStyle = sel ? "#ffd34d" : "rgba(0,0,0,0.55)"; c.lineWidth = sel ? 0.035 : 0.02; c.stroke();
+  c.strokeStyle = sel ? "#ffd34d" : leader ? "rgba(220,180,90,0.85)" : "rgba(0,0,0,0.55)";
+  c.lineWidth = sel || leader ? 0.035 : 0.02; c.stroke();
   const hg = c.createRadialGradient(0.0, -0.03, 0.01, 0.02, 0, 0.08);
   hg.addColorStop(0, "#a9b3ad"); hg.addColorStop(1, "#3b4540");
   c.fillStyle = hg; c.beginPath(); c.arc(0.02, 0, 0.075, 0, TAU); c.fill();
+  if (leader) {
+    // Rank chevron pip above the helmet.
+    c.fillStyle = "#ffd34d";
+    c.beginPath();
+    c.moveTo(-0.04, -0.2);
+    c.lineTo(0, -0.26);
+    c.lineTo(0.04, -0.2);
+    c.lineTo(0, -0.22);
+    c.closePath();
+    c.fill();
+  }
   if (flash) {
     c.globalCompositeOperation = "lighter";
     const fg = c.createRadialGradient(0.3, 0.05, 0, 0.3, 0.05, 0.14);
@@ -491,14 +545,33 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
       c.strokeStyle = "rgba(255,211,77,0.9)"; c.lineWidth = 0.05;
       c.beginPath(); c.ellipse(p.x, p.y + 0.05, p.kind === "squad" ? 1.5 : 0.75, p.kind === "squad" ? 1.3 : 0.6, 0, 0, TAU); c.stroke();
     }
+    // Dust puff when the unit is relocating.
+    if (mvx * mvx + mvy * mvy > 1e-5 && Math.random() < 0.35) {
+      parts.push({
+        x: p.x - mvx * 2, y: p.y - mvy * 2,
+        vx: (Math.random() - 0.5) * 0.8, vy: (Math.random() - 0.5) * 0.8,
+        life: 0.45, max: 0.45, col: "180,140,90", r: 0.08 + Math.random() * 0.06,
+      });
+    }
     const flash = p.cd > 0.38;
     const ca = Math.cos(s.ang), sa = Math.sin(s.ang);
     const form = infantryFormation(p.kind);
     for (let i = 0; i < p.soldiers; i++) {
       const { x: fx, y: fy, fireTeam } = form[i];
       const jx = Math.sin(now * 2 + i * 2.1 + s.phase) * 0.03;
-      const leader = fireTeam === null;
-      trooper(c, p.x + fx * ca - fy * sa + jx, p.y + fx * sa + fy * ca, s.ang + (i - 2) * 0.025, leader ? "#b89b54" : "#5d6b74", leader ? "#6d562d" : "#3c463c", flash && (i + Math.floor(now * 20)) % 2 === 0, sel);
+      // Squad leader slot, or the point man of a fire team.
+      const leader = fireTeam === null || (p.kind === "team" && i === 0);
+      trooper(
+        c,
+        p.x + fx * ca - fy * sa + jx,
+        p.y + fx * sa + fy * ca,
+        s.ang + (i - 2) * 0.025,
+        leader ? "#b89b54" : "#5d6b74",
+        leader ? "#6d562d" : "#3c463c",
+        flash && (i + Math.floor(now * 20)) % 2 === 0,
+        sel,
+        leader,
+      );
     }
     bar(c, p.x, p.y - (p.kind === "squad" ? 1.55 : 0.85), p.soldiers / maxInfantrySoldiers(p), p.kind === "squad" ? 1.8 : 0.9);
   }
