@@ -34,20 +34,23 @@ describe("engineer post-construction movement", () => {
     expect(engineer.y).toBeCloseTo(game.core.y);
   });
 
-  it("steps a team two meters toward the ship after every wall segment before starting the next", () => {
+  it("keeps building consecutive wall segments without pulling back until the whole line is done", () => {
     const { game, engineer } = setup(true);
     engineer.x = 15.5; engineer.y = 5.5;
     game.buildWall(15.5, 5.5, 15.5, 6.5);
+    expect(game.walls).toHaveLength(2);
+
     game.update(0.75);
     expect(game.walls[0]?.built).toBe(1);
-    expect(engineer.tx).toBeCloseTo(13.5);
-    expect(engineer.ty).toBeCloseTo(5.5);
-    game.update(0.8);
-    expect(engineer.x).toBeCloseTo(13.5);
+    // Still on the unfinished line — do not retreat after the first segment.
+    expect(engineer.postBuildMove).not.toBe(true);
     expect(game.walls[1]?.built).toBe(0);
+
     for (let i = 0; i < 80 && game.walls[1]?.built !== 1; i++) game.update(0.05);
     expect(game.walls[1]?.built).toBe(1);
+    expect(engineer.postBuildMove).toBe(true);
     expect(Math.hypot(engineer.tx - engineer.x, engineer.ty - engineer.y)).toBeCloseTo(2);
+
     for (let i = 0; i < 40; i++) game.update(0.05);
     expect(engineer.x).toBeCloseTo(engineer.tx);
     expect(engineer.y).toBeCloseTo(engineer.ty);

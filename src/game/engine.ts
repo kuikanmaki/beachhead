@@ -1,6 +1,25 @@
 // @ts-nocheck -- hot-loop typed-array/grid indexing; strict indexed-access checks are disabled for this file only.
 // Beachhead — pure game simulation + canvas renderer (no React).
 import { FogOfWar } from "./fog";
+import {
+  assignLeader,
+  emptyCampaign,
+  loadCampaign,
+  recordFallen,
+  resolveAfterAction,
+  saveCampaign,
+  type AfterActionAward,
+  type CampaignRoster,
+  type UnitRosterEntry,
+} from "./roster";
+import {
+  KILL_COMBO_WINDOW,
+  activeKillBanner,
+  comboCallout,
+  milestoneCallout,
+  type KillBanner,
+} from "./kills";
+export type { KillBanner } from "./kills";
 
 export const T = 20;
 export let W = 48;
@@ -20,7 +39,19 @@ export const CRUISER_HP = 1400;
 type Bug = { x: number; y: number; hp: number; max: number; speed: number; dmg: number; r: number; kind: 0 | 1 | 2; bounty: number };
 export type InfantryKind = "team" | "squad";
 type MovableUnit = { x: number; y: number; tx: number; ty: number; path: { x: number; y: number }[] };
-export type Infantry = MovableUnit & { id: number; kind: InfantryKind; fireTeams: number; soldiers: number; hp: number; cd: number };
+export type Infantry = MovableUnit & {
+  id: number;
+  kind: InfantryKind;
+  fireTeams: number;
+  soldiers: number;
+  hp: number;
+  cd: number;
+  /** Campaign roster leader id (rank + surname). */
+  leaderId: string;
+  startingStrength: number;
+  lossesThisBattle: number;
+  killsThisBattle: number;
+};
 export type Engineer = MovableUnit & { id: number; kind: "engineer" | "team"; members: number; hp: number; job: number | null; manualMove: boolean; postBuildMove?: boolean };
 type Tower = { id: number; tx: number; ty: number; built: number; hp: number; cd: number };
 export type WallSegment = { id: number; jobId: number; tx: number; ty: number; x: number; y: number; angle: number; built: number; paid: boolean };
@@ -83,17 +114,76 @@ export class Game {
   t = 0;
   lastDeath = 0;
   deaths = 0;
+  /** Total bugs killed this playthrough; survives Level 1 → 2, resets on New drop. */
   kills = 0;
+  killCombo = 0;
+  lastKillAt = -Infinity;
+  /** Increments on every kill so the HUD can pulse the counter. */
+  killPulse = 0;
+  killBanner: KillBanner | null = null;
   wave = 0;
   nextHorde = 45;
   spawnAcc = 0;
   selected: number | null = null;
   nid = 1;
   message = "Choose a landing zone: click open ground.";
+  /** Game-time when `message` clears; Infinity keeps a sticky prompt (landing / outcome). */
+  messageClearAt = Infinity;
+  /** Persistent campaign roster shared across levels in this browser. */
+  campaign: CampaignRoster = emptyCampaign();
+  /** Awards from the most recent win/loss resolution (shown on the result screen). */
+  afterAction: AfterActionAward[] = [];
+  private afterActionResolved = false;
 
-  constructor(seed = Date.now()) {
+  /** Status line for the HUD. Pass Infinity to keep it until replaced. */
+  announce(text: string, duration = 4) {
+    this.message = text;
+    this.messageClearAt = Number.isFinite(duration) ? this.t + duration : Infinity;
+  }
+
+  /** Record one bug kill for the campaign-run tally, combo chain, and callouts. */
+  registerKill() {
+    this.kills++;
+    this.killPulse++;
+    if (this.t - this.lastKillAt > KILL_COMBO_WINDOW) this.killCombo = 0;
+    this.killCombo++;
+    this.lastKillAt = this.t;
+
+    const milestone = milestoneCallout(this.kills);
+    if (milestone) {
+      this.killBanner = {
+        kind: "milestone",
+        text: milestone.text,
+        detail: milestone.detail,
+        until: this.t + 2.6,
+        pulse: this.killPulse,
+      };
+      return;
+    }
+
+    const combo = comboCallout(this.killCombo);
+    const milestoneShowing =
+      this.killBanner?.kind === "milestone" && this.t < this.killBanner.until;
+    if (combo && !milestoneShowing) {
+      this.killBanner = {
+        kind: "combo",
+        text: combo.text,
+        detail: combo.detail,
+        until: this.t + 1.7,
+        pulse: this.killPulse,
+      };
+    }
+  }
+
+  currentKillBanner() {
+    this.killBanner = activeKillBanner(this.killBanner, this.t);
+    return this.killBanner;
+  }
+
+  constructor(seed = Date.now(), options?: { freshCampaign?: boolean }) {
     this.rand = rng(seed);
     this.map = this.generate();
+    this.campaign = options?.freshCampaign ? emptyCampaign() : loadCampaign();
     // A short-range drop scan gives the player a usable landing choice without satellite comms.
     this.fog.revealArea(W / 2, H / 2, 9);
   }
@@ -164,7 +254,7 @@ export class Game {
     engineer.x = this.core.x - 1;
     this.engineers.push(engineer);
     this.updateFog();
-    this.message = "Team down! The swarm is coming. Hold the line.";
+    this.announce("Team down! The swarm is coming. Hold the line.", 5);
     return true;
   }
 
@@ -193,6 +283,14 @@ export class Game {
   /** First-stage victory unlocks one paused placement step; the battlefield and survivors carry over. */
   continueToCruiser() {
     if (this.phase !== "won" || this.level !== 1) return false;
+    // Reset per-battle counters for surviving units entering Level 2.
+    for (const p of this.infantry) {
+      p.startingStrength = p.soldiers;
+      p.lossesThisBattle = 0;
+      p.killsThisBattle = 0;
+    }
+    this.afterAction = [];
+    this.afterActionResolved = false;
     this.level = 2;
     this.phase = "shipLanding";
     this.bugs = [];
@@ -200,7 +298,7 @@ export class Game {
     this.wave = 0;
     this.spawnAcc = 0;
     this.selected = null;
-    this.message = "Level 2: choose a rock-free 7×7 sector. Installations beneath the cruiser will be removed.";
+    this.announce("Level 2: choose a rock-free 7×7 sector. Installations beneath the cruiser will be removed.", Infinity);
     return true;
   }
 
@@ -215,7 +313,7 @@ export class Game {
   landCruiser(tx: number, ty: number) {
     if (this.phase !== "shipLanding") return false;
     if (!this.canLandCruiser(tx, ty)) {
-      this.message = "The cruiser needs a rock-free 7×7 sector within the map.";
+      this.announce("The cruiser needs a rock-free 7×7 sector within the map.", 4);
       return false;
     }
     const covered = (x: number, y: number) => Math.abs(x - tx) <= CRUISER_RADIUS && Math.abs(y - ty) <= CRUISER_RADIUS;
@@ -256,15 +354,21 @@ export class Game {
     this.fog.revealArea(this.core.x, this.core.y, 7);
     this.updateFog();
     this.perimeter = this.perimeterStatus();
-    this.message = "Cruiser down! Forward-deploy squads to protect engineers, then drag wall lines with [4].";
+    this.announce("Cruiser down! Forward-deploy squads to protect engineers, then drag wall lines with [4].", 6);
     return true;
   }
 
   newInfantry(tx: number, ty: number, kind: InfantryKind = "team"): Infantry {
+    const strength = kind === "squad" ? SQUAD_SIZE : TEAM_SIZE;
+    const leader = assignLeader(this.campaign, kind);
     const p: Infantry = {
       id: this.nid++, kind, fireTeams: kind === "squad" ? SQUAD_FIRE_TEAMS : 1,
       x: this.core.x, y: this.core.y, tx: this.core.x, ty: this.core.y, path: [],
-      soldiers: kind === "squad" ? SQUAD_SIZE : TEAM_SIZE, hp: SOLDIER_HP, cd: 0,
+      soldiers: strength, hp: SOLDIER_HP, cd: 0,
+      leaderId: leader.id,
+      startingStrength: strength,
+      lossesThisBattle: 0,
+      killsThisBattle: 0,
     };
     this.commandInfantry(p, tx, ty);
     return p;
@@ -273,12 +377,12 @@ export class Game {
   /** Shared movement order for every troop type, including engineers. */
   commandInfantry(p: MovableUnit, x: number, y: number) {
     if (this.at(Math.floor(x), Math.floor(y)) === ROCK) {
-      this.message = "Units can't cross sheer rock.";
+      this.announce("Units can't cross sheer rock.", 3);
       return false;
     }
     const path = this.findInfantryPath(p.x, p.y, x, y);
     if (!path.length) {
-      this.message = "No route to that position.";
+      this.announce("No route to that position.", 3);
       return false;
     }
     p.tx = x; p.ty = y; p.path = path;
@@ -336,45 +440,45 @@ export class Game {
   }
 
   dropTeam(x: number, y: number) {
-    if (this.hasCruiser) return (this.message = "Level 2 deploys full squads."), false;
+    if (this.hasCruiser) { this.announce("Level 2 deploys full squads.", 3); return false; }
     return this.deployInfantry(x, y, "team");
   }
 
   dropSquad(x: number, y: number) {
-    if (!this.hasCruiser) return (this.message = "Squads require the Level 2 command cruiser."), false;
+    if (!this.hasCruiser) { this.announce("Squads require the Level 2 command cruiser.", 3); return false; }
     return this.deployInfantry(x, y, "squad");
   }
 
   private deployInfantry(x: number, y: number, kind: InfantryKind) {
     if (this.phase !== "playing") return false;
     const cost = COST[kind], name = kind === "squad" ? "squad" : "team";
-    if (this.credits < cost) return (this.message = `Not enough credits for a ${name}.`), false;
-    if (this.at(Math.floor(x), Math.floor(y)) === ROCK) return (this.message = "Infantry can't stand on sheer rock."), false;
+    if (this.credits < cost) { this.announce(`Not enough credits for a ${name}.`, 3); return false; }
+    if (this.at(Math.floor(x), Math.floor(y)) === ROCK) { this.announce("Infantry can't stand on sheer rock.", 3); return false; }
     const p = this.newInfantry(x, y, kind);
     if (!p.path.length && Math.hypot(p.x - x, p.y - y) > 0.01) return false;
     this.credits -= cost;
     this.infantry.push(p); this.selected = p.id;
-    this.message = kind === "squad"
-      ? "Squad deployed from the cruiser: three fire teams and one squad leader moving as one."
-      : "Fresh team dropping at the LZ.";
+    this.announce(kind === "squad"
+      ? "Squad deployed from the cruiser."
+      : "Fresh team dropping at the LZ.", 3);
     return true;
   }
   trainEngineer() {
     return this.hasCruiser ? this.trainEngineerTeam() : this.deployEngineer("engineer");
   }
   trainEngineerTeam() {
-    if (!this.hasCruiser) return (this.message = "Engineer teams require the Level 2 command cruiser."), false;
+    if (!this.hasCruiser) { this.announce("Engineer teams require the Level 2 command cruiser.", 3); return false; }
     return this.deployEngineer("team");
   }
   private deployEngineer(kind: Engineer["kind"]) {
     if (this.phase !== "playing") return false;
     const cost = kind === "team" ? COST.engineerTeam : COST.engineer;
-    if (this.credits < cost) return (this.message = `Not enough credits for an ${kind === "team" ? "engineer team" : "engineer"}.`), false;
+    if (this.credits < cost) { this.announce(`Not enough credits for an ${kind === "team" ? "engineer team" : "engineer"}.`, 3); return false; }
     this.credits -= cost;
     const engineer = this.newEngineer(kind);
     this.engineers.push(engineer);
     this.selected = engineer.id;
-    this.message = kind === "team" ? "Four-person engineer team deployed from the cruiser." : "Engineer ready.";
+    this.announce(kind === "team" ? "Four-person engineer team deployed from the cruiser." : "Engineer ready.", 3);
     return true;
   }
 
@@ -488,10 +592,10 @@ export class Game {
   }
 
   buildWall(x1: number, y1: number, x2: number, y2: number) {
-    if (this.phase !== "playing" || !this.hasCruiser) return (this.message = "Walls unlock with the Level 2 engineer teams."), false;
-    if (!this.engineers.some((e) => e.kind === "team" && e.members > 0)) return (this.message = "Deploy an engineer team before marking a wall."), false;
+    if (this.phase !== "playing" || !this.hasCruiser) { this.announce("Walls unlock with the Level 2 engineer teams.", 3); return false; }
+    if (!this.engineers.some((e) => e.kind === "team" && e.members > 0)) { this.announce("Deploy an engineer team before marking a wall.", 3); return false; }
     const plan = this.wallPlan(x1, y1, x2, y2);
-    if (!plan.valid) return (this.message = "Wall not started: redraw a continuous line with no red blocked segments."), false;
+    if (!plan.valid) { this.announce("Wall not started: redraw a continuous line with no red blocked segments.", 3); return false; }
     const jobId = this.nid++;
     const job: WallJob = { id: jobId, engineerId: null, wallIds: [] };
     for (const { tx, ty, x, y, angle } of plan.buildable) {
@@ -499,20 +603,21 @@ export class Game {
       this.walls.push(segment); job.wallIds.push(segment.id);
     }
     this.wallJobs.push(job); this.assignWallJob(job);
-    this.message = `Wall marked: ${plan.buildable.length} connected segments, built in drag order for ${COST.wall} credits each.`;
+    this.announce(`Wall marked: ${plan.buildable.length} connected segments, built in drag order for ${COST.wall} credits each.`, 4);
     return true;
   }
 
   placeTower(tx: number, ty: number) {
     if (this.phase !== "playing") return false;
-    if (this.at(tx, ty) === ROCK) return (this.message = "Can't build on rock."), false;
-    if (this.towers.some((t) => t.tx === tx && t.ty === ty) || this.wallAt(tx, ty) || (Math.floor(this.core.x) === tx && Math.floor(this.core.y) === ty))
-      return (this.message = "Tile occupied."), false;
-    if (this.credits < COST.tower) return (this.message = "Not enough credits for a tower."), false;
-    if (!this.engineers.length) return (this.message = "You need an engineer to build towers."), false;
+    if (this.at(tx, ty) === ROCK) { this.announce("Can't build on rock.", 3); return false; }
+    if (this.towers.some((t) => t.tx === tx && t.ty === ty) || this.wallAt(tx, ty) || (Math.floor(this.core.x) === tx && Math.floor(this.core.y) === ty)) {
+      this.announce("Tile occupied.", 3); return false;
+    }
+    if (this.credits < COST.tower) { this.announce("Not enough credits for a tower.", 3); return false; }
+    if (!this.engineers.length) { this.announce("You need an engineer to build towers.", 3); return false; }
     this.credits -= COST.tower;
     this.towers.push({ id: this.nid++, tx, ty, built: 0, hp: 300, cd: 0 });
-    this.message = "Tower site marked. Engineers en route."; return true;
+    this.announce("Tower site marked. Engineers en route.", 3); return true;
   }
   unselect() { this.selected = null; }
 
@@ -548,14 +653,47 @@ export class Game {
   }
 
   killSoldier(p: Infantry) {
-    p.soldiers--; p.hp = SOLDIER_HP; this.deaths++; this.lastDeath = this.t;
+    p.soldiers--;
+    p.hp = SOLDIER_HP;
+    p.lossesThisBattle++;
+    this.deaths++;
+    this.lastDeath = this.t;
+    recordFallen(this.campaign, this.level, 1);
+    // Persist roster outside the hot combat loop's critical path; batch on outcome / deploy.
     this.splats.push({ x: p.x + (this.rand() - 0.5), y: p.y + (this.rand() - 0.5), life: 30, r: 0.25, green: false });
+  }
+
+  private unitRosterSnapshot(): UnitRosterEntry[] {
+    return this.infantry.map((p) => ({
+      unitId: p.id,
+      leaderId: p.leaderId,
+      kind: p.kind,
+      deployedOnLevel: this.level,
+      startingStrength: p.startingStrength,
+      currentStrength: p.soldiers,
+      lossesThisBattle: p.lossesThisBattle,
+      killsThisBattle: p.killsThisBattle,
+    }));
+  }
+
+  /** Resolve decorations / promotions once when a level ends. */
+  resolveCampaignOutcome(victory: boolean) {
+    if (this.afterActionResolved) return;
+    this.afterActionResolved = true;
+    this.afterAction = resolveAfterAction(
+      this.campaign,
+      this.unitRosterSnapshot(),
+      this.level,
+      victory,
+      this.rand,
+    );
   }
 
   update(dt: number) {
     if (this.phase !== "playing") return;
     this.t += dt;
     this.credits += 4 * dt;
+    if (this.message && this.t >= this.messageClearAt) this.message = "";
 
     // spawning
     const levelElapsed = this.t - this.levelStartedAt;
@@ -569,7 +707,7 @@ export class Game {
       const n = (this.hasCruiser ? 30 : 14) + this.wave * (this.hasCruiser ? 12 : 8);
       for (let i = 0; i < n; i++) this.spawnBug(this.wave >= 3 && i % 12 === 0 ? 2 : undefined);
       this.nextHorde += this.hasCruiser ? Math.max(40, 65 - this.wave * 5) : 45;
-      this.message = `HORDE ${this.wave} INBOUND — ${n} bugs!`;
+      this.announce(`HORDE ${this.wave} INBOUND — ${n} bugs!`, 5);
     }
 
     // bugs
@@ -623,9 +761,21 @@ export class Game {
       const tg = nearestBug(p.x, p.y, high ? 6.5 : 4.2);
       if (tg && p.cd <= 0) {
         p.cd = 0.45;
+        const before = tg.hp;
         tg.hp -= 6 * p.soldiers;
+        if (before > 0 && tg.hp <= 0) p.killsThisBattle++;
         const volleys = p.kind === "squad" ? [[0, -0.82], [0, 0.82], [-0.78, 0]] : [[0, 0]];
         for (const [ox, oy] of volleys) this.tracers.push({ x1: p.x + ox, y1: p.y + oy, x2: tg.x, y2: tg.y, life: 0.08, tower: false });
+      }
+    }
+    // Wipe leaders of destroyed units before dropping them from the field.
+    for (const p of this.infantry) {
+      if (p.soldiers > 0) continue;
+      const leader = this.campaign.soldiers.find((s) => s.id === p.leaderId);
+      if (leader && leader.status === "active") {
+        leader.status = "fallen";
+        leader.fallenOn.push(this.level);
+        saveCampaign(this.campaign);
       }
     }
     this.infantry = this.infantry.filter((p) => p.soldiers > 0);
@@ -682,7 +832,7 @@ export class Game {
           if (this.credits >= COST.wall) { this.credits -= COST.wall; segment.paid = true; }
           else if (this.t - this.lastWallCreditWarning >= 2) {
             this.lastWallCreditWarning = this.t;
-            this.message = `Wall construction paused: ${COST.wall} credits needed for the next segment.`;
+            this.announce(`Wall construction paused: ${COST.wall} credits needed for the next segment.`, 3);
           }
         }
         if (segment.paid) {
@@ -690,16 +840,21 @@ export class Game {
           if (segment.built >= 1 && !this.wallGrid[segment.ty * W + segment.tx]) {
             this.wallGrid[segment.ty * W + segment.tx] = 1;
             this.computeFlow();
-            this.message = `Wall segment secured. ${this.walls.filter((w) => w.built >= 1).length} completed.`;
-            // Step behind this segment toward the cruiser, never across sheer rock.
-            const homeDistance = Math.hypot(this.core.x - e.x, this.core.y - e.y);
-            if (homeDistance > 0.15) {
-              for (let step = Math.min(2, homeDistance); step >= 0.25; step -= 0.25) {
-                const x = e.x + (this.core.x - e.x) * step / homeDistance;
-                const y = e.y + (this.core.y - e.y) * step / homeDistance;
-                if (this.findInfantryPath(e.x, e.y, x, y).length && this.commandInfantry(e, x, y)) {
-                  e.postBuildMove = true;
-                  break;
+            const lineDone = wallJob ? !this.nextWallSegment(wallJob) : true;
+            this.announce(lineDone
+              ? `Wall line secured. ${this.walls.filter((w) => w.built >= 1).length} completed.`
+              : `Wall segment secured. ${this.walls.filter((w) => w.built >= 1).length} completed.`, 3);
+            // Pull back only after the whole drawn wall line is finished — not after each segment.
+            if (lineDone) {
+              const homeDistance = Math.hypot(this.core.x - e.x, this.core.y - e.y);
+              if (homeDistance > 0.15) {
+                for (let step = Math.min(2, homeDistance); step >= 0.25; step -= 0.25) {
+                  const x = e.x + (this.core.x - e.x) * step / homeDistance;
+                  const y = e.y + (this.core.y - e.y) * step / homeDistance;
+                  if (this.findInfantryPath(e.x, e.y, x, y).length && this.commandInfantry(e, x, y)) {
+                    e.postBuildMove = true;
+                    break;
+                  }
                 }
               }
             }
@@ -731,10 +886,12 @@ export class Game {
     // deaths
     this.bugs = this.bugs.filter((b) => {
       if (b.hp > 0) return true;
-      this.kills++; this.credits += b.bounty;
+      this.registerKill();
+      this.credits += b.bounty;
       this.splats.push({ x: b.x, y: b.y, life: 20, r: b.r * 1.4, green: true });
       return false;
     });
+    this.currentKillBanner();
     for (const tr of this.tracers) tr.life -= dt;
     this.tracers = this.tracers.filter((t) => t.life > 0);
     for (const s of this.splats) s.life -= dt;
@@ -745,11 +902,22 @@ export class Game {
     if (this.hasCruiser) this.perimeter = this.perimeterStatus();
 
     // win / lose
-    if (this.core.hp <= 0) { this.phase = "lost"; this.message = this.hasCruiser ? "The command cruiser has been destroyed." : "The LZ has been overrun."; }
-    else if (!this.infantry.length && !this.engineers.length) { this.phase = "lost"; this.message = "All units lost. The beachhead falls."; }
-    else if (this.level === 1 && this.t >= WIN_AFTER && this.t - this.lastDeath >= HOLD_NEEDED) { this.phase = "won"; this.message = "The defenses hold. Beachhead secured!"; }
-    else if (this.level === 2 && this.perimeter.sealed && this.perimeter.enemiesInside === 0) {
-      this.phase = "won"; this.message = "Perimeter sealed and clear. Landing zone secured!";
+    if (this.core.hp <= 0) {
+      this.phase = "lost";
+      this.announce(this.hasCruiser ? "The command cruiser has been destroyed." : "The LZ has been overrun.", Infinity);
+      this.resolveCampaignOutcome(false);
+    } else if (!this.infantry.length && !this.engineers.length) {
+      this.phase = "lost";
+      this.announce("All units lost. The beachhead falls.", Infinity);
+      this.resolveCampaignOutcome(false);
+    } else if (this.level === 1 && this.t >= WIN_AFTER && this.t - this.lastDeath >= HOLD_NEEDED) {
+      this.phase = "won";
+      this.announce("The defenses hold. Beachhead secured!", Infinity);
+      this.resolveCampaignOutcome(true);
+    } else if (this.level === 2 && this.perimeter.sealed && this.perimeter.enemiesInside === 0) {
+      this.phase = "won";
+      this.announce("Perimeter sealed and clear. Landing zone secured!", Infinity);
+      this.resolveCampaignOutcome(true);
     }
   }
 
