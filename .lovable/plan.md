@@ -1,42 +1,38 @@
-# Level 3: Hold the Wall (options plan)
+# Level 3: Hold the Wall
 
-Level 3 starts the moment Level 2 is won (the cruiser is sealed in). There is no new landing. A short Level 3 start screen appears, then a siege begins. Bugs mass at the walls and climb over them where the swarm is thick enough. You win by surviving the siege.
+Level 3 begins the moment Level 2 is won (the cruiser is sealed in). There is no new landing. A short Level 3 start screen appears, with the same style as the other levels:
+- Title: "Hold the wall"
+- Line: "Survive the swarm until it breaks."
+- Tip: "Call Orbital Napalm on swarms piling up at the wall."
 
-## 1. Wall overclimb (required)
-- Options:
-  - **A. Pile-up climb (recommended):** when enough bugs crowd one wall segment, they form a living ramp, and bugs pour over that segment until the crowd thins. You can see it happen: the bugs stack up, the segment glows red, and a warning sound plays.
-  - B. Wall damage: bugs chew segments down until they collapse into gaps that engineers must repair.
-  - C. Both: crowds climb, and some bugs also damage the wall.
-- Engineer teams can **repair or thicken** damaged segments (this costs credits).
-- Level 2 walls stay impassable. Overclimbing only exists from Level 3 onward, so Level 2 balance is unchanged.
+After the start screen, the swarms attack at once and keep getting bigger.
 
-## 2. New or larger units (pick 1-2)
-- **A. Power Suit trooper (recommended):** a slow, tough heavy unit with a short-range flamer. It is good at clearing bugs that have climbed over the wall.
-- B. Sniper team: three troopers with long range and high damage, best placed on high ground behind the walls.
-- C. Platoon: three squads deployed and moved as one unit (about 40 soldiers).
-- D. Mobile mortar team: indirect fire over the wall into the massing crowd.
+## Wall overclimb (pile-up)
+- If enough bugs crowd one wall segment, they form a living ramp. Bugs cross that segment until the crowd thins out.
+- Warning signs: the segment pulses red, a crowd marker appears, and you hear a warning sound if your troops are nearby.
+- Climbing takes a short moment, so your troops get a chance to react.
+- Walls in Level 2 stay impassable, so Level 2 is unchanged.
 
-## 3. New weapon systems (pick 1-2)
-- **A. Artillery battery (recommended):** a built defense that shells bug crowds outside the wall automatically. It directly counters pile-ups.
-- B. Flame bunker: built on a wall segment, it scorches climbers in a short cone.
-- C. Orbital strike: an ability where you click an area and it is hit after a delay. It has a long cooldown and gives a dramatic "save the wall" moment.
-- D. Minefield: cheap traps placed outside the wall.
+## Orbital Napalm Strike (new weapon)
+- New button [5] Orbital Napalm. It costs a large amount of credits and has a cooldown.
+- Click a spot on the map. A targeting circle appears, and after about 2 seconds a fire strike hits it.
+- The fire burns for a few seconds and kills or damages bugs in the area. It also hurts your own troops standing there, which fits the expendable-infantry theme.
+- Visuals: a beam from orbit, a fireball, burning ground and scorch marks. Sound: a distant roar, then the blast.
 
-## 4. New enemy types (optional, adds pressure)
-- **A. Heavy "tanker" bug (recommended):** a large, slow bug that deals heavy damage to walls and towers and anchors pile-ups.
-- B. Fast climbers: small bugs that need a smaller crowd to get over.
-- C. Spitter bugs: they attack defenders on the wall from range.
+## Objective and end
+- Goal: survive the swarms.
+- The game counts how many bugs you kill during Level 3. The target number is hidden from the player.
+- When you reach the target, every bug turns and runs back to the map edge, and a "The swarm breaks!" victory screen appears.
+- You lose as now: the cruiser is destroyed, or all your units are lost.
+- The swarm pressure is set so that you can't win by just waiting: you need napalm, towers and squads.
 
-## 5. Win and pacing
-- **A. Survive the siege (recommended):** a countdown on screen (for example, hold for 4 minutes) with three escalating assault waves and a final "mega-swarm". You win if the cruiser survives.
-- B. Survive a set number of named waves (for example, "Wave 3 of 5").
-- Loss works as now: the cruiser is destroyed or all units are lost.
-
-## Recommended bundle
-Pile-up climb, plus repair, Power Suit, Artillery battery, the Heavy bug, and survive-the-siege. This gives one new unit, one new weapon and one new threat, so the level stays light and arcade-like.
+## Not included now
+No new or larger units yet.
 
 ## Technical notes
-- Add a level 3 state to the existing level flow in the engine, entered right after Level 2's sealed-perimeter victory, with its own start screen. It uses the same briefing style as the other levels.
-- Overclimb: count bugs near each wall tile per tick. Above a threshold, mark the tile as climbable for pathfinding (with a crossing delay). This only applies in Level 3.
-- New units and buildings reuse the shared movement, pathfinding, selection and construction pipelines.
-- Add tests for the climb threshold, Level 2 walls staying impassable, the transition into Level 3, and siege win and loss.
+- Engine: add level 3 to the level flow, entered from Level 2's sealed-perimeter victory, with a hidden `levelThreeKillTarget` and a per-level kill counter. Add a retreat phase in which bugs path to the nearest edge and despawn, then victory.
+- Overclimb: count bugs per tick in a radius around each wall tile. Above a threshold, the pathfinder treats that tile as passable with a climb delay. This applies only in Level 3.
+- Napalm: add `orbitalStrike(x, y)` with cost and cooldown checks, a delayed impact, and a burning area-damage zone. Rendering and sound reuse the existing effect and positional-audio systems.
+- UI: a [5] button with cooldown and cost display, the Level 3 briefing, and the victory screen. The HUD hides during the briefing, matching the existing rule.
+- Tests: climb threshold, Level 2 walls stay impassable, transition into Level 3, napalm cost, cooldown and damage, and that the kill target triggers retreat and victory.
+- Update README, AGENTS.md, memory and the roadmap.
