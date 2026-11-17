@@ -2,7 +2,7 @@
 
 Level 3 begins the moment Level 2 is won (the cruiser is sealed in). There is no new landing. A short Level 3 start screen appears, with the same style as the other levels:
 - Title: "Hold the wall"
-- Line: "Survive the swarm until it breaks."
+- Line: "Survive the swarm."
 - Tip: "Call Orbital Napalm on swarms piling up at the wall."
 
 After the start screen, the swarms attack at once and keep getting bigger.
@@ -15,9 +15,9 @@ After the start screen, the swarms attack at once and keep getting bigger.
 
 ## Orbital Napalm Strike (new weapon)
 - New button [5] Orbital Napalm. It costs a large amount of credits and has a cooldown.
-- Click a spot on the map. A targeting circle appears, and after about 2 seconds a fire strike hits it.
+- Click a spot on the map. A targeting marker appears, and after about 2 seconds a Fleet Tactical Airspace Control fighter makes an overflight bomb run, dropping napalm along its pass over the target.
 - The fire burns for a few seconds and kills or damages bugs in the area. It also hurts your own troops standing there, which fits the expendable-infantry theme.
-- Visuals: a beam from orbit, a fireball, burning ground and scorch marks. Sound: a distant roar, then the blast.
+- Visuals: the fighter streaks across the map with its shadow on the ground, releases its bombs, then a fireball, burning ground and scorch marks. Sound: a rising jet roar as the fighter passes, the whistle of falling bombs, then the blast.
 
 ## Objective and end
 - Goal: survive the swarms.
