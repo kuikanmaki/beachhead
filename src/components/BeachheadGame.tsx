@@ -12,10 +12,10 @@ import {
   rankOf,
 } from "@/game/roster";
 import { activeKillBanner } from "@/game/kills";
-import { ArrowRight, BookOpen, Crosshair, Medal, Shield, TowerControl } from "lucide-react";
+import { ArrowRight, BookOpen, Crosshair, Flame, Medal, Shield, TowerControl } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type Mode = "select" | "infantry" | "tower" | "wall";
+type Mode = "select" | "infantry" | "tower" | "wall" | "napalm";
 type WallDraft = { x1: number; y1: number; x2: number; y2: number };
 type WallDrag = WallDraft & { sx: number; sy: number; moved: boolean };
 
@@ -64,7 +64,10 @@ export function BeachheadGame() {
     if (introductionRef.current) {
       introductionRef.current = false;
       setIntroduction(false);
-    } else setBriefing(false);
+    } else {
+      gameRef.current?.beginSiege();
+      setBriefing(false);
+    }
   };
   const setMode = (m: Mode) => {
     modeRef.current = m;
@@ -95,6 +98,7 @@ export function BeachheadGame() {
     let raf = 0,
       last = performance.now(),
       hud = 0;
+    (window as any).__g = () => gameRef.current; // TEMP
     const loop = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
@@ -176,6 +180,10 @@ export function BeachheadGame() {
         const g = gameRef.current;
         if (g?.hasCruiser && g.phase === "playing") setMode("wall");
         else if (g) g.announce("Build Wall unlocks with Level 2 engineer teams.", 3);
+      }
+      if (e.key === "5") {
+        const g = gameRef.current;
+        if (g?.level === 3 && g.phase === "playing") setMode("napalm");
       }
       if (e.key === "Escape") {
         setMode("select");
@@ -282,6 +290,8 @@ export function BeachheadGame() {
       if (g.dropInfantry(p.x, p.y) && !e.shiftKey) setMode("select");
     } else if (modeRef.current === "tower") {
       if (g.placeTower(Math.floor(p.x), Math.floor(p.y)) && !e.shiftKey) setMode("select");
+    } else if (modeRef.current === "napalm") {
+      if (g.callNapalm(p.x, p.y)) setMode("select");
     } else if (modeRef.current === "wall") g.announce("Click and drag to mark a wall line.", 3);
     else g.click(p.x, p.y);
   };
@@ -306,7 +316,8 @@ export function BeachheadGame() {
     setBriefing(true);
   };
   const continueMission = () => {
-    if (gameRef.current?.continueToCruiser()) {
+    const g = gameRef.current;
+    if (g && (g.level === 1 ? g.continueToCruiser() : g.continueToSiege())) {
       setMode("select");
       setPausedOpen(false);
       setRoster(false);
@@ -341,7 +352,7 @@ export function BeachheadGame() {
         onMouseMove={(e) => (hoverRef.current = toWorld(e))}
         onMouseLeave={() => (hoverRef.current = null)}
       />
-      {g && !(briefingOpen && (g.phase === "landing" || g.phase === "shipLanding")) && (
+      {g && !(briefingOpen && (g.phase === "landing" || g.phase === "shipLanding" || g.phase === "siegeReady")) && (
         <Hud
           g={g}
           mode={mode}
@@ -526,6 +537,16 @@ function Hud({
               {g.t < WIN_AFTER && g.phase === "playing" ? ` · after ${fmt(WIN_AFTER)}` : ""}
             </p>
           </div>
+        ) : g.level === 3 ? (
+          <div className="hud-panel bg-card/80 backdrop-blur-sm" aria-label="Siege objective">
+            <p className="text-xs uppercase tracking-widest text-primary">Hold the wall</p>
+            <p className={`mt-2 text-sm ${g.retreatStartedAt !== null ? "text-success" : "text-foreground"}`}>
+              {g.retreatStartedAt !== null ? "The swarm breaks!" : "Survive the swarm."}
+            </p>
+            {g.climbGrid.some((v) => v === 1) && (
+              <p className="mt-1 text-xs font-semibold text-destructive">Bugs climbing the wall!</p>
+            )}
+          </div>
         ) : (
           <div className="hud-panel bg-card/80 backdrop-blur-sm" aria-label="Landing zone objective">
             <p className="text-xs uppercase tracking-widest text-primary">Secure the landing zone</p>
@@ -577,6 +598,17 @@ function Hud({
               <span>{COST.wall}/seg</span>
             </button>
           )}
+          {g.level === 3 && (
+            <button
+              disabled={g.phase !== "playing"}
+              className={`hud-btn backdrop-blur-sm ${mode === "napalm" ? "hud-btn-active" : "bg-secondary/85"}`}
+              onClick={() => setMode(mode === "napalm" ? "select" : "napalm")}
+              aria-label="Orbital Napalm"
+            >
+              <span>[5] Orbital Napalm</span>
+              <span>{g.napalmCooldown() > 0 ? `${Math.ceil(g.napalmCooldown())}s` : COST.napalm}</span>
+            </button>
+          )}
         </div>
       </aside>
 
@@ -615,7 +647,7 @@ function Hud({
       {(g.phase === "won" || g.phase === "lost") && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 overflow-y-auto bg-background/75 px-4 py-8">
           <h2 className={`font-display text-6xl uppercase ${g.phase === "won" ? "text-success" : "text-destructive"}`}>
-            {g.phase === "won" ? (g.level === 2 ? "Landing Zone Secured" : "Beachhead Secured") : "Overrun"}
+            {g.phase === "won" ? (g.level === 3 ? "The Swarm Breaks" : g.level === 2 ? "Landing Zone Secured" : "Beachhead Secured") : "Overrun"}
           </h2>
           <p className="font-mono text-sm text-muted-foreground">
             Survived {fmt(g.t)} · {g.kills} bugs killed this campaign · {g.deaths} troopers lost this battle ·{" "}
@@ -623,7 +655,9 @@ function Hud({
           </p>
           {g.phase === "won" && (
             <p className="max-w-md text-center font-mono text-sm text-foreground">
-              {g.level === 2
+              {g.level === 3
+                ? "The wall held. The surviving bugs have fled the battlefield."
+                : g.level === 2
                 ? "The cruiser is encircled and every enemy inside the perimeter has been eliminated."
                 : "Level 1 complete. Bring in a command cruiser, relocate your base, and fortify its landing zone."}
             </p>
@@ -641,14 +675,14 @@ function Hud({
             </div>
           )}
           <div className="flex flex-wrap justify-center gap-2">
-            {g.phase === "won" && g.level === 1 && (
+            {g.phase === "won" && g.level < 3 && (
               <button onClick={continueMission} className="hud-btn hud-btn-primary">
-                Continue to Level 2
+                Continue to Level {g.level + 1}
               </button>
             )}
             <button
               onClick={restart}
-              className={`hud-btn ${g.phase === "lost" || g.level === 2 ? "hud-btn-primary" : ""}`}
+              className={`hud-btn ${g.phase === "lost" || g.level === 3 ? "hud-btn-primary" : ""}`}
             >
               New drop
             </button>
@@ -782,7 +816,8 @@ function FieldManual({
 }) {
   const [showDetails, setShowDetails] = useState(false);
   const levelTwo = g.level === 2;
-  const starting = g.phase === "landing" || g.phase === "shipLanding";
+  const levelThree = g.level === 3;
+  const starting = g.phase === "landing" || g.phase === "shipLanding" || g.phase === "siegeReady";
   if (starting && !showDetails) {
     return (
       <div className="absolute inset-0 z-30 flex items-center justify-center overflow-y-auto bg-background/80 px-6 py-8 sm:px-12">
@@ -797,7 +832,7 @@ function FieldManual({
             id="opening-title"
             className={`font-display uppercase leading-none ${introduction ? "text-7xl sm:text-8xl" : "text-5xl sm:text-7xl"}`}
           >
-            {introduction ? "Beachhead" : levelTwo ? "Secure the cruiser" : "Hold the beachhead"}
+            {introduction ? "Beachhead" : levelThree ? "Hold the wall" : levelTwo ? "Secure the cruiser" : "Hold the beachhead"}
           </h2>
           {introduction ? (
             <>
@@ -816,19 +851,25 @@ function FieldManual({
             </>
           ) : (
             <>
-              {levelTwo ? (
+              {levelThree ? (
+                <Flame className="mx-auto mt-8 size-10 text-destructive" strokeWidth={1.5} aria-hidden="true" />
+              ) : levelTwo ? (
                 <Shield className="mx-auto mt-8 size-10 text-primary" strokeWidth={1.5} aria-hidden="true" />
               ) : (
                 <TowerControl className="mx-auto mt-8 size-10 text-success" strokeWidth={1.5} aria-hidden="true" />
               )}
               <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-foreground/90 sm:text-lg">
-                {levelTwo
+                {levelThree
+                  ? "Survive the swarm."
+                  : levelTwo
                   ? "Build walls around your cruiser to form a base. Clear any bugs trapped inside."
                   : "Keep your infantry alive long enough for your defenses to stabilize the line."}
               </p>
               <p className="mx-auto mt-7 max-w-md border-t border-border/70 pt-5 text-sm leading-relaxed text-muted-foreground">
                 <span className="text-primary">Tip: </span>
-                {levelTwo
+                {levelThree
+                  ? "Call Orbital Napalm on swarms piling up at the wall."
+                  : levelTwo
                   ? "Forward-deploy larger squads to protect the wall builders."
                   : "Once machine gun towers are built, pull soldiers behind them."}
               </p>
@@ -842,7 +883,7 @@ function FieldManual({
               className="h-12 w-full max-w-64 font-mono uppercase"
               onClick={onClose}
             >
-              {introduction ? "Play" : levelTwo ? "Land cruiser" : "Land troops"} <ArrowRight aria-hidden="true" />
+              {introduction ? "Play" : levelThree ? "Hold the wall" : levelTwo ? "Land cruiser" : "Land troops"} <ArrowRight aria-hidden="true" />
             </Button>
             <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowDetails(true)}>
               <BookOpen aria-hidden="true" /> Briefing
@@ -866,7 +907,7 @@ function FieldManual({
               {starting ? `Mission ${g.level}` : "Battle paused"}
             </p>
             <h2 id="field-manual-title" className="mt-1 font-display text-3xl uppercase tracking-wide">
-              {levelTwo ? "Secure the Landing Zone" : "Establish the Beachhead"}
+              {levelThree ? "Hold the Wall" : levelTwo ? "Secure the Landing Zone" : "Establish the Beachhead"}
             </h2>
           </div>
           {!starting && (

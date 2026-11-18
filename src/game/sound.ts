@@ -1,6 +1,7 @@
 // @ts-nocheck -- WebAudio synth; strict indexed-access checks disabled for this file only.
 // Positional battlefield audio: only events within earshot of a living trooper/engineer are played.
 import type { Game } from "./engine";
+import { W } from "./engine";
 
 const EAR = 9; // tiles a trooper can hear
 let ac: AudioContext | null = null, master: GainNode | null = null, noise: AudioBuffer | null = null;
@@ -52,6 +53,9 @@ const SFX = {
     for (let i = 0; i < 6; i++) o.frequency.setValueAtTime(i % 2 ? 520 : 680, t + i * 0.3);
     g.gain.setValueAtTime(0.12, t); g.gain.linearRampToValueAtTime(0.0001, t + 1.8); const f = ac!.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 1800;
     o.connect(f); f.connect(g); g.connect(d); o.start(t); o.stop(t + 1.9); },
+  jet: (d: AudioNode) => { noiseHit(d, "bandpass", 500, 2.2, 0.9, 0.7, 2600); tone(d, "sawtooth", 140, 420, 2, 0.12); },
+  whistle: (d: AudioNode) => { tone(d, "sine", 2400, 600, 0.5, 0.18); },
+  blast: (d: AudioNode) => { noiseHit(d, "lowpass", 1600, 1.8, 1, 0.8, 50); tone(d, "sine", 90, 30, 1.4, 0.7); noiseHit(d, "highpass", 2500, 0.3, 0.5); },
   rumble: (d: AudioNode) => { noiseHit(d, "lowpass", 400, 2.2, 1, 1, 60); tone(d, "sine", 70, 35, 2, 0.5); },
 };
 
@@ -66,6 +70,8 @@ function hear(g: Game, x: number, y: number) {
 }
 
 const seen = new WeakSet<object>();
+const strikeStage = new WeakMap<object, number>();
+const climbWarned = new Set<number>();
 let budget = 0, lastT = 0, lastWave = 0, lastPhase = "", screechCd = 0, weldCd = 0;
 
 function play(g: Game, name: keyof typeof SFX, x: number, y: number, gain = 1) {
@@ -88,6 +94,19 @@ export function audioTick(g: Game, dt: number) {
   for (const s of g.splats) if (!seen.has(s)) { seen.add(s); play(g, s.green ? "squelch" : "scream", s.x, s.y, s.green ? 0.5 : 1); }
   let shots = 0;
   for (const t of g.tracers) if (!seen.has(t)) { seen.add(t); if (shots++ < 4) play(g, t.tower ? "mg" : "rifle", t.x1, t.y1, t.tower ? 0.45 : 0.6); }
+  // Napalm run: the jet roar and bomb whistle are heard everywhere; the blast follows troop earshot.
+  for (const st of g.strikes) {
+    const stage = strikeStage.get(st) ?? 0, rel = g.t - st.impactAt, pan = Math.max(-1, Math.min(1, (st.x / W - 0.5) * 2));
+    if (stage < 1 && rel > -1.6) { strikeStage.set(st, 1); SFX.jet(out(0.7, pan)); }
+    else if (stage < 2 && rel > -0.5) { strikeStage.set(st, 2); SFX.whistle(out(0.5, pan)); }
+    else if (stage < 3 && rel >= 0) { strikeStage.set(st, 3); const h = hear(g, st.x, st.y); SFX.blast(out(h ? 0.5 + h.vol * 0.5 : 0.35, h ? h.pan : pan)); }
+  }
+  for (const w of g.walls) {
+    if (g.level !== 3) break;
+    const i = w.ty * 1000 + w.tx;
+    if (g.climbGrid[w.ty * (W) + w.tx] && !climbWarned.has(i)) { climbWarned.add(i); play(g, "siren", w.x, w.y, 0.4); }
+    else if (!g.climbGrid[w.ty * (W) + w.tx]) climbWarned.delete(i);
+  }
   screechCd -= dt;
   if (screechCd <= 0) {
     screechCd = 0.4 + Math.random() * 0.6;

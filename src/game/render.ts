@@ -1,7 +1,7 @@
 // @ts-nocheck -- hot-loop pixel/canvas code; strict indexed-access checks disabled for this file only.
 // High-resolution renderer for Beachhead: lit procedural terrain, animated units, light effects.
 import type { Game } from "./engine";
-import { T, W, H, ROCK, HIGH, infantryFormation, maxInfantrySoldiers } from "./engine";
+import { T, W, H, ROCK, HIGH, COST, NAPALM_RADIUS, infantryFormation, maxInfantrySoldiers } from "./engine";
 import type { Camera } from "./camera";
 
 export const RS = 2; // render scale: canvas pixels per engine pixel
@@ -452,6 +452,14 @@ function tower(c: CanvasRenderingContext2D, g: Game, t: any, now: number, dt: nu
 }
 
 // ---------- main ----------
+const NAPALM_R = NAPALM_RADIUS;
+function fighterShape(c: CanvasRenderingContext2D, s: number) {
+  c.beginPath();
+  c.moveTo(1 * s, 0); c.lineTo(0.2 * s, 0.18 * s); c.lineTo(-0.3 * s, 0.8 * s); c.lineTo(-0.55 * s, 0.8 * s);
+  c.lineTo(-0.4 * s, 0.2 * s); c.lineTo(-0.9 * s, 0.35 * s); c.lineTo(-0.9 * s, -0.35 * s); c.lineTo(-0.4 * s, -0.2 * s);
+  c.lineTo(-0.55 * s, -0.8 * s); c.lineTo(-0.3 * s, -0.8 * s); c.lineTo(0.2 * s, -0.18 * s); c.closePath();
+}
+
 export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: number; y: number } | null, mode: string, camera: Camera, wallDraft: { x1: number; y1: number; x2: number; y2: number } | null = null) {
   const now = performance.now() / 1000, dt = Math.min(0.1, now - (lastNow || now)); lastNow = now;
   if (!g.bg) g.bg = buildTerrain(g);
@@ -513,6 +521,19 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
 
   if (g.hasCruiser) cruiser(c, g, now); else core(c, g, now);
   for (const w of g.walls) wall(c, w, now);
+  // Level 3 pile-ups: pressured wall segments pulse red, overrun ones glow solid.
+  if (g.level === 3) for (const w of g.walls) {
+    const i = w.ty * W + w.tx, pr = g.wallPressure[i];
+    if (pr <= 0.05 && !g.climbGrid[i]) continue;
+    const pulse = 0.5 + Math.sin(now * (g.climbGrid[i] ? 14 : 7)) * 0.5;
+    c.save(); c.translate(w.x, w.y); c.rotate(w.angle);
+    c.fillStyle = `rgba(255,60,40,${g.climbGrid[i] ? 0.35 + pulse * 0.3 : Math.min(0.4, pr * 0.25) * pulse})`;
+    c.fillRect(-0.5, -0.4, 1, 0.8); c.restore();
+    if (g.climbGrid[i]) {
+      c.strokeStyle = `rgba(255,90,60,${0.6 + pulse * 0.4})`; c.lineWidth = 0.07;
+      c.beginPath(); c.moveTo(w.x - 0.3, w.y - 0.9); c.lineTo(w.x, w.y - 1.25); c.lineTo(w.x + 0.3, w.y - 0.9); c.stroke();
+    }
+  }
   for (const t of g.towers) tower(c, g, t, now, dt, towerFire.has(`${t.tx + 0.5},${t.ty + 0.5}`));
 
   // All enemy contacts remain visible across the map.
@@ -606,6 +627,27 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
 
   // tracers + particles (additive light)
   c.globalCompositeOperation = "lighter"; c.lineCap = "round";
+  // Napalm fires
+  for (const f of g.fires) {
+    const left = Math.max(0, f.until - g.t), a = Math.min(1, left / 1.5);
+    for (let k = 0; k < 7; k++) {
+      const fx = f.x + Math.sin(now * 3 + k * 1.7) * f.r * 0.45, fy = f.y + Math.cos(now * 2.4 + k * 2.3) * f.r * 0.45;
+      const r = f.r * (0.45 + 0.15 * Math.sin(now * 9 + k));
+      const gr = c.createRadialGradient(fx, fy, 0, fx, fy, r);
+      gr.addColorStop(0, `rgba(255,230,140,${0.5 * a})`); gr.addColorStop(0.5, `rgba(255,120,30,${0.35 * a})`); gr.addColorStop(1, "rgba(120,20,0,0)");
+      c.fillStyle = gr; c.beginPath(); c.arc(fx, fy, r, 0, TAU); c.fill();
+    }
+    if (Math.random() < 0.8) parts.push({ x: f.x + (Math.random() - 0.5) * f.r * 1.6, y: f.y + (Math.random() - 0.5) * f.r * 1.6, vx: (Math.random() - 0.5), vy: -1.5 - Math.random(), life: 0.6, max: 0.6, col: "255,150,40", r: 0.08 + Math.random() * 0.08 });
+  }
+  // Impact flash
+  for (const st of g.strikes) {
+    const since = g.t - st.impactAt;
+    if (since < 0 || since > 0.6) continue;
+    const r = NAPALM_R * (1 + since * 1.5), a = 1 - since / 0.6;
+    const gr = c.createRadialGradient(st.x, st.y, 0, st.x, st.y, r);
+    gr.addColorStop(0, `rgba(255,255,220,${a})`); gr.addColorStop(0.4, `rgba(255,170,60,${0.8 * a})`); gr.addColorStop(1, "rgba(255,60,0,0)");
+    c.fillStyle = gr; c.beginPath(); c.arc(st.x, st.y, r, 0, TAU); c.fill();
+  }
   for (const tr of g.tracers) {
     const a = tr.life / (tr.tower ? 0.06 : 0.08);
     c.strokeStyle = tr.tower ? `rgba(255,170,60,${0.35 * a})` : `rgba(255,220,120,${0.3 * a})`; c.lineWidth = 0.16;
@@ -619,6 +661,39 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D, hover: { x: n
   }
   particles.set(g, parts.filter((p) => p.life > 0).slice(-600));
   c.globalCompositeOperation = "source-over";
+
+  // Fleet fighter overflight: target marker, ground shadow, falling bombs, aircraft.
+  for (const st of g.strikes) {
+    const dx = Math.cos(st.angle), dy = Math.sin(st.angle), rel = g.t - st.impactAt, speed = 16;
+    if (rel < 0) {
+      const pulse = 0.5 + Math.sin(now * 10) * 0.5;
+      c.strokeStyle = `rgba(255,110,40,${0.5 + pulse * 0.5})`; c.lineWidth = 0.07; c.setLineDash([0.3, 0.2]);
+      c.beginPath(); c.arc(st.x, st.y, NAPALM_R, 0, TAU); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.moveTo(st.x - dx * NAPALM_R * 1.4, st.y - dy * NAPALM_R * 1.4); c.lineTo(st.x + dx * NAPALM_R * 1.4, st.y + dy * NAPALM_R * 1.4); c.stroke();
+    }
+    const px = st.x + dx * rel * speed, py = st.y + dy * rel * speed;
+    if (rel > -0.45 && rel < 0) for (let k = 0; k < 3; k++) {
+      const off = (k - 1) * 0.6, bx = st.x + dx * off, by = st.y + dy * off, fall = 1 + rel / 0.45;
+      c.fillStyle = "#2a2622"; c.beginPath(); c.arc(bx, by - (1 - fall) * 1.2, 0.12, 0, TAU); c.fill();
+    }
+    if (rel > 1.2) continue;
+    // shadow
+    c.save(); c.translate(px + 1.4, py + 1.8); c.rotate(st.angle); c.fillStyle = "rgba(0,0,0,0.35)"; fighterShape(c, 1.1); c.fill(); c.restore();
+    // aircraft
+    c.save(); c.translate(px, py); c.rotate(st.angle);
+    c.fillStyle = "#9aa3ad"; fighterShape(c, 1.1); c.fill();
+    c.strokeStyle = "#3a4048"; c.lineWidth = 0.05; c.stroke();
+    c.fillStyle = "#5fb3ff"; c.beginPath(); c.ellipse(0.5, 0, 0.22, 0.09, 0, 0, TAU); c.fill();
+    c.globalCompositeOperation = "lighter";
+    c.fillStyle = `rgba(255,170,80,${0.6 + Math.random() * 0.4})`; c.beginPath(); c.ellipse(-1.05, 0, 0.35, 0.12, 0, 0, TAU); c.fill();
+    c.globalCompositeOperation = "source-over";
+    c.restore();
+  }
+  if (hover && mode === "napalm") {
+    const ready = g.napalmCooldown() <= 0 && g.credits >= COST.napalm, col = ready ? "255,130,50" : "255,90,60";
+    c.fillStyle = `rgba(${col},0.1)`; c.strokeStyle = `rgba(${col},0.85)`; c.lineWidth = 0.06;
+    c.beginPath(); c.arc(hover.x, hover.y, NAPALM_R, 0, TAU); c.fill(); c.stroke();
+  }
 
   // placement previews
   if (mode === "wall" && wallDraft) {

@@ -28,7 +28,18 @@ export let H = 32;
 export function setMapSize(aspect: number) { H = 32; W = Math.max(32, Math.min(80, Math.round(32 * aspect))); }
 export const GROUND = 0, HIGH = 1, ROCK = 2;
 
-export const COST = { team: 60, squad: 180, engineer: 80, engineerTeam: 160, tower: 120, wall: 8 };
+export const COST = { team: 60, squad: 180, engineer: 80, engineerTeam: 160, tower: 120, wall: 8, napalm: 220 };
+/** Level 3 siege tuning. The kill target stays hidden from the player. */
+export const LEVEL_THREE_KILL_TARGET = 320;
+export const CLIMB_CROWD = 7; // bugs pressed against a wall segment to form a living ramp
+export const CLIMB_TIME = 1.6; // seconds a crowd must hold before bugs get over
+export const NAPALM_COOLDOWN = 25;
+export const NAPALM_DELAY = 2; // seconds from call to bomb impact
+export const NAPALM_RADIUS = 2.6;
+export const NAPALM_BURN = 5;
+export const RETREAT_TIME = 4;
+export type NapalmStrike = { x: number; y: number; angle: number; calledAt: number; impactAt: number; impacted: boolean };
+export type FireZone = { x: number; y: number; r: number; until: number };
 export const WALL_BUILD_TIME = 0.75;
 export const ENGINEER_TEAM_SIZE = 4;
 export const WIN_AFTER = 180; // seconds before victory can trigger
@@ -93,7 +104,15 @@ export class Game {
   dist = new Float32Array(W * H);
   fog = new FogOfWar(W, H);
   bg: HTMLCanvasElement | null = null;
-  phase: "landing" | "shipLanding" | "playing" | "won" | "lost" = "landing";
+  phase: "landing" | "shipLanding" | "siegeReady" | "playing" | "won" | "lost" = "landing";
+  /** Level 3: crowd pressure per wall tile, and tiles currently overrun by a pile-up. */
+  wallPressure = new Float32Array(W * H);
+  climbGrid = new Uint8Array(W * H);
+  levelKills = 0;
+  retreatStartedAt: number | null = null;
+  strikes: NapalmStrike[] = [];
+  fires: FireZone[] = [];
+  napalmReadyAt = 0;
   level = 1;
   hasCruiser = false;
   levelStartedAt = 0;
@@ -144,6 +163,7 @@ export class Game {
   /** Record one bug kill for the campaign-run tally, combo chain, and callouts. */
   registerKill() {
     this.kills++;
+    this.levelKills++;
     this.killPulse++;
     if (this.t - this.lastKillAt > KILL_COMBO_WINDOW) this.killCombo = 0;
     this.killCombo++;
@@ -212,7 +232,7 @@ export class Game {
   wallAt(tx: number, ty: number) { return this.walls.find((w) => w.tx === tx && w.ty === ty); }
   /** Only finished walls block enemies; infantry and engineers can still cross their own lines. */
   isEnemyBlocked(tx: number, ty: number) {
-    return this.at(tx, ty) === ROCK || (tx >= 0 && ty >= 0 && tx < W && ty < H && this.wallGrid[ty * W + tx] === 1);
+    return this.at(tx, ty) === ROCK || (tx >= 0 && ty >= 0 && tx < W && ty < H && this.wallGrid[ty * W + tx] === 1 && !this.climbGrid[ty * W + tx]);
   }
 
   computeFlow() {
@@ -300,6 +320,97 @@ export class Game {
     this.selected = null;
     this.announce("Level 2: choose a rock-free 7×7 sector. Installations beneath the cruiser will be removed.", Infinity);
     return true;
+  }
+
+  /** Level 2 victory flows straight into the wall siege; the base, walls and survivors carry over. */
+  continueToSiege() {
+    if (this.phase !== "won" || this.level !== 2) return false;
+    for (const p of this.infantry) { p.startingStrength = p.soldiers; p.lossesThisBattle = 0; p.killsThisBattle = 0; }
+    this.afterAction = [];
+    this.afterActionResolved = false;
+    this.level = 3;
+    this.phase = "siegeReady";
+    this.selected = null;
+    this.announce("Level 3: hold the wall.", Infinity);
+    return true;
+  }
+
+  beginSiege() {
+    if (this.phase !== "siegeReady") return false;
+    this.phase = "playing";
+    this.levelStartedAt = this.t;
+    this.levelKills = 0;
+    this.retreatStartedAt = null;
+    this.wave = 0;
+    this.spawnAcc = 0;
+    this.nextHorde = this.t;
+    this.napalmReadyAt = this.t;
+    this.announce("The swarm is massing at the wall. Call [5] Orbital Napalm on pile-ups.", 6);
+    return true;
+  }
+
+  napalmCooldown() { return Math.max(0, this.napalmReadyAt - this.t); }
+
+  /** A fleet fighter overflies the target and drops napalm after a short delay. */
+  callNapalm(x: number, y: number) {
+    if (this.phase !== "playing" || this.level !== 3) return false;
+    if (this.napalmCooldown() > 0) { this.announce(`Napalm fighter rearming: ${Math.ceil(this.napalmCooldown())}s.`, 3); return false; }
+    if (this.credits < COST.napalm) { this.announce("Not enough credits for an Orbital Napalm Strike.", 3); return false; }
+    this.credits -= COST.napalm;
+    this.napalmReadyAt = this.t + NAPALM_COOLDOWN;
+    this.strikes.push({ x, y, angle: this.rand() * Math.PI * 2, calledAt: this.t, impactAt: this.t + NAPALM_DELAY, impacted: false });
+    this.announce("Fleet fighter inbound — napalm run in 2 seconds!", 3);
+    return true;
+  }
+
+  /** Bugs crowding a finished wall build a living ramp; Level 2 walls stay impassable. */
+  updateWallClimb(dt: number) {
+    if (this.level !== 3) return;
+    const counts = new Uint16Array(W * H);
+    for (const b of this.bugs) {
+      const x = Math.floor(b.x), y = Math.floor(b.y);
+      if (x >= 0 && y >= 0 && x < W && y < H) counts[y * W + x]++;
+    }
+    let changed = false;
+    for (const w of this.walls) {
+      if (w.built < 1) continue;
+      const i = w.ty * W + w.tx;
+      let crowd = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = w.tx + dx, ny = w.ty + dy;
+        if (nx >= 0 && ny >= 0 && nx < W && ny < H) crowd += counts[ny * W + nx];
+      }
+      if (crowd >= CLIMB_CROWD) this.wallPressure[i] = Math.min(CLIMB_TIME + 1, this.wallPressure[i] + dt);
+      else this.wallPressure[i] = Math.max(0, this.wallPressure[i] - dt * (crowd < CLIMB_CROWD / 2 ? 2 : 0.5));
+      const climbable = this.wallPressure[i] >= CLIMB_TIME ? 1 : this.climbGrid[i] && this.wallPressure[i] > 0.4 ? 1 : 0;
+      if (climbable !== this.climbGrid[i]) {
+        if (climbable) this.announce("Bugs are climbing the wall!", 2);
+        this.climbGrid[i] = climbable; changed = true;
+      }
+    }
+    if (changed) this.computeFlow();
+  }
+
+  updateNapalm(dt: number) {
+    for (const s of this.strikes) {
+      if (s.impacted || this.t < s.impactAt) continue;
+      s.impacted = true;
+      this.fires.push({ x: s.x, y: s.y, r: NAPALM_RADIUS, until: this.t + NAPALM_BURN });
+      for (const b of this.bugs) if (Math.hypot(b.x - s.x, b.y - s.y) <= NAPALM_RADIUS) b.hp -= 140;
+      for (let k = 0; k < 10; k++) this.splats.push({ x: s.x + (this.rand() - 0.5) * NAPALM_RADIUS * 1.6, y: s.y + (this.rand() - 0.5) * NAPALM_RADIUS * 1.6, life: 40, r: 0.6, green: false });
+    }
+    this.strikes = this.strikes.filter((s) => this.t < s.impactAt + 1.2);
+    for (const f of this.fires) {
+      for (const b of this.bugs) if (Math.hypot(b.x - f.x, b.y - f.y) <= f.r) b.hp -= 45 * dt;
+      // Friendly troops caught in the fire burn too.
+      for (const p of this.infantry) if (Math.hypot(p.x - f.x, p.y - f.y) <= f.r) {
+        p.hp -= 30 * dt; while (p.hp <= 0 && p.soldiers > 0) { const over = -p.hp; this.killSoldier(p); p.hp -= over; }
+      }
+      for (const e of this.engineers) if (Math.hypot(e.x - f.x, e.y - f.y) <= f.r) {
+        e.hp -= 30 * dt; while (e.hp <= 0 && e.members > 0) { const over = -e.hp; e.members--; e.hp = 40; e.hp -= over; }
+      }
+    }
+    this.fires = this.fires.filter((f) => this.t < f.until);
   }
 
   canLandCruiser(tx: number, ty: number) {
@@ -697,21 +808,33 @@ export class Game {
 
     // spawning
     const levelElapsed = this.t - this.levelStartedAt;
-    const spawnRate = this.hasCruiser
+    const retreating = this.retreatStartedAt !== null;
+    const spawnRate = retreating ? 0 : this.level === 3
+      ? (0.9 + levelElapsed / 70) * 1.4
+      : this.hasCruiser
       ? (0.3 + levelElapsed / 110) * 1.35
       : 0.35 + this.t / 120;
     this.spawnAcc += dt * spawnRate;
     while (this.spawnAcc >= 1) { this.spawnAcc--; this.spawnBug(); }
-    if (this.t >= this.nextHorde) {
+    if (!retreating && this.t >= this.nextHorde) {
       this.wave++;
-      const n = (this.hasCruiser ? 30 : 14) + this.wave * (this.hasCruiser ? 12 : 8);
+      const siege = this.level === 3;
+      const n = siege ? 45 + this.wave * 18 : (this.hasCruiser ? 30 : 14) + this.wave * (this.hasCruiser ? 12 : 8);
       for (let i = 0; i < n; i++) this.spawnBug(this.wave >= 3 && i % 12 === 0 ? 2 : undefined);
-      this.nextHorde += this.hasCruiser ? Math.max(40, 65 - this.wave * 5) : 45;
+      this.nextHorde += siege ? Math.max(28, 45 - this.wave * 4) : this.hasCruiser ? Math.max(40, 65 - this.wave * 5) : 45;
       this.announce(`HORDE ${this.wave} INBOUND — ${n} bugs!`, 5);
     }
 
     // bugs
-    for (const b of this.bugs) {
+    if (retreating) {
+      // The broken swarm flees straight away from the cruiser and vanishes off the map.
+      for (const b of this.bugs) {
+        const dx = b.x - this.core.x, dy = b.y - this.core.y, l = Math.hypot(dx, dy) || 1;
+        b.x += (dx / l) * b.speed * 1.6 * dt; b.y += (dy / l) * b.speed * 1.6 * dt;
+      }
+      this.bugs = this.bugs.filter((b) => b.x > -1 && b.y > -1 && b.x < W + 1 && b.y < H + 1);
+    }
+    else for (const b of this.bugs) {
       const targets: { x: number; y: number; hit: (d: number) => void }[] = [];
       for (const p of this.infantry) targets.push({ x: p.x, y: p.y, hit: (d) => {
         const hg = this.at(Math.floor(p.x), Math.floor(p.y)) === HIGH ? 0.55 : 1;
@@ -752,6 +875,9 @@ export class Game {
       for (const b of this.bugs) { const d = Math.hypot(b.x - x, b.y - y); if (d < bd && b.hp > 0) { bd = d; best = b; } }
       return best;
     };
+
+    this.updateWallClimb(dt);
+    this.updateNapalm(dt);
 
     // Teams and squads follow tile-safe routes instead of crossing rock in a straight line.
     for (const p of this.infantry) {
@@ -913,6 +1039,14 @@ export class Game {
     } else if (this.level === 1 && this.t >= WIN_AFTER && this.t - this.lastDeath >= HOLD_NEEDED) {
       this.phase = "won";
       this.announce("The defenses hold. Beachhead secured!", Infinity);
+      this.resolveCampaignOutcome(true);
+    } else if (this.level === 3 && this.retreatStartedAt === null && this.levelKills >= LEVEL_THREE_KILL_TARGET) {
+      this.retreatStartedAt = this.t;
+      this.announce("The swarm breaks! Bugs are retreating.", Infinity);
+    } else if (this.level === 3 && this.retreatStartedAt !== null && (this.t - this.retreatStartedAt >= RETREAT_TIME || !this.bugs.length)) {
+      this.bugs = [];
+      this.phase = "won";
+      this.announce("The swarm breaks! The wall held.", Infinity);
       this.resolveCampaignOutcome(true);
     } else if (this.level === 2 && this.perimeter.sealed && this.perimeter.enemiesInside === 0) {
       this.phase = "won";
